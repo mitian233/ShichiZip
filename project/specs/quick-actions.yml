@@ -5,6 +5,8 @@ targets:
     postBuildScripts: &generate_build_metadata
       - name: Generate Build Metadata
         basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
         script: |
           sh "${SRCROOT}/project/scripts/generate-build-metadata.sh"
     sources:
