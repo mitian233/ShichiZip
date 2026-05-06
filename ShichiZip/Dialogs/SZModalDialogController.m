@@ -1,5 +1,8 @@
 #import "SZModalDialogController.h"
 
+static const CGFloat SZModalDialogMinimumContentWidth = 440.0;
+static const CGFloat SZModalDialogMaximumTextColumnWidth = 520.0;
+
 static NSString* SZModalDialogAppDisplayName(void) {
     NSBundle* bundle = NSBundle.mainBundle;
     NSString* displayName = [bundle objectForInfoDictionaryKey:@"CFBundleDisplayName"];
@@ -54,7 +57,7 @@ static NSString* SZModalDialogAppDisplayName(void) {
 }
 
 - (CGFloat)minimumContentWidth {
-    CGFloat minimumWidth = 440;
+    CGFloat minimumWidth = SZModalDialogMinimumContentWidth;
     if (_accessoryView) {
         const CGFloat accessoryWidth = _accessoryView.fittingSize.width + 86;
         if (accessoryWidth > minimumWidth) {
@@ -136,7 +139,7 @@ static NSString* SZModalDialogAppDisplayName(void) {
 }
 
 - (void)loadView {
-    NSView* container = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 440, 200)];
+    NSView* container = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, SZModalDialogMinimumContentWidth, 200)];
     container.translatesAutoresizingMaskIntoConstraints = NO;
     const BOOL hasMessage = _dialogMessage.length > 0;
 
@@ -162,6 +165,9 @@ static NSString* SZModalDialogAppDisplayName(void) {
     titleLabel.font = [NSFont systemFontOfSize:15 weight:NSFontWeightSemibold];
     titleLabel.lineBreakMode = NSLineBreakByWordWrapping;
     titleLabel.maximumNumberOfLines = 0;
+    titleLabel.preferredMaxLayoutWidth = SZModalDialogMaximumTextColumnWidth;
+    [titleLabel setContentCompressionResistancePriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
+    [titleLabel.widthAnchor constraintLessThanOrEqualToConstant:SZModalDialogMaximumTextColumnWidth].active = YES;
 
     NSStackView* textStack = [[NSStackView alloc] init];
     textStack.translatesAutoresizingMaskIntoConstraints = NO;
@@ -174,7 +180,12 @@ static NSString* SZModalDialogAppDisplayName(void) {
         messageLabel.translatesAutoresizingMaskIntoConstraints = NO;
         messageLabel.font = [NSFont systemFontOfSize:12];
         messageLabel.textColor = NSColor.secondaryLabelColor;
+        messageLabel.lineBreakMode = NSLineBreakByCharWrapping;
         messageLabel.maximumNumberOfLines = 0;
+        messageLabel.preferredMaxLayoutWidth = SZModalDialogMaximumTextColumnWidth;
+        messageLabel.accessibilityIdentifier = @"modal.message";
+        [messageLabel setContentCompressionResistancePriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
+        [messageLabel.widthAnchor constraintLessThanOrEqualToConstant:SZModalDialogMaximumTextColumnWidth].active = YES;
         [textStack addArrangedSubview:messageLabel];
     }
     [container addSubview:textStack];

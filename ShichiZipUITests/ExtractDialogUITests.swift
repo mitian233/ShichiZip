@@ -200,6 +200,16 @@ final class ExtractDialogUITests: ShichiZipUITestCase {
         let passwordField = waitForPasswordPromptField()
         XCTAssertTrue(passwordField.exists,
                       "Password prompt should appear for encrypted archive extraction")
+        let promptMessage = app.descendants(matching: .any)
+            .matching(identifier: "modal.message")
+            .firstMatch
+        XCTAssertTrue(promptMessage.waitForExistence(timeout: 2),
+                      "Password prompt should identify the archive that needs a password")
+        let promptMessageText = [promptMessage.label, promptMessage.value as? String]
+            .compactMap(\.self)
+            .joined(separator: "\n")
+        XCTAssertTrue(promptMessageText.contains(archiveURL.lastPathComponent),
+                      "Password prompt should include the archive name")
         passwordField.click()
         passwordField.typeText("wrong-password")
         passwordField.selectAll()

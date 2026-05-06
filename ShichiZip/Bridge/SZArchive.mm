@@ -1926,6 +1926,7 @@ static BOOL SZValidateArchiveMutationName(NSString* name, NSError** error) {
     SZOperationSession* resolvedSession = session ?: SZMakeDefaultOperationSession(nil);
     SZOpenCallbackUI callbackUI;
     callbackUI.Session = resolvedSession;
+    callbackUI.ArchivePath = ToU(path ?: @"");
     if (password) {
         callbackUI.PasswordIsDefined = true;
         callbackUI.Password = ToU(password);
@@ -3366,6 +3367,7 @@ static bool SZParseVolumeSizes(const UString& text,
 
     SZOpenCallbackUI openCallbackUI;
     openCallbackUI.Session = resolvedSession;
+    openCallbackUI.ArchivePath = ToU(archivePath ?: @"");
     // Reopen encrypted archives with the write password to avoid a second prompt.
     if (callbackUI.PasswordIsDefined) {
         openCallbackUI.PasswordIsDefined = true;

@@ -49,6 +49,7 @@ public:
     bool HasTotalValue;
     bool UsesBytesProgress;
     __weak SZOperationSession* Session;
+    UString ArchivePath;
 
     SZOpenCallbackUI();
     virtual ~SZOpenCallbackUI() {
@@ -64,7 +65,10 @@ public:
     HRESULT Open_CryptoGetTextPassword(BSTR* password) override {
         PasswordWasAsked = true;
         if (!PasswordIsDefined) {
-            HRESULT hr = SZRequestOperationPassword(Session, Password, PasswordIsDefined);
+            HRESULT hr = SZRequestOperationPassword(Session,
+                Password,
+                PasswordIsDefined,
+                ToNS(ArchivePath));
             if (hr != S_OK)
                 return hr;
         }

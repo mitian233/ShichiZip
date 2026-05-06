@@ -80,7 +80,7 @@ static uint32_t SZDialogRoundUpByteCountToGB(uint64_t byteCount) {
     [container addSubview:_showPasswordButton];
 
     [NSLayoutConstraint activateConstraints:@[
-        [container.widthAnchor constraintEqualToConstant:320],
+        [container.widthAnchor constraintGreaterThanOrEqualToConstant:320],
 
         [_secureField.topAnchor constraintEqualToAnchor:container.topAnchor],
         [_secureField.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
