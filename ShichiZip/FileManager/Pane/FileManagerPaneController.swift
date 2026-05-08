@@ -1484,10 +1484,10 @@ class FileManagerPaneController: NSViewController, NSTableViewDataSource, NSTabl
                                                 operation: NSDragOperation,
                                                 session: SZOperationSession) throws
     {
-        try transferDroppedFileURLs(urls.map(\.standardizedFileURL),
-                                    to: destinationDirectory.standardizedFileURL,
-                                    operation: operation,
-                                    session: session)
+        try FileOperationFileSystemTransfer.perform(urls,
+                                                    to: destinationDirectory,
+                                                    operation: operation,
+                                                    session: session)
     }
 
     func canTransferFileSystemItemURLs(_ urls: [URL],
@@ -4042,10 +4042,10 @@ class FileManagerPaneController: NSViewController, NSTableViewDataSource, NSTabl
                                                      parentWindow: view.window,
                                                      deferredDisplay: true)
                 { session in
-                    try self.transferDroppedFileURLs(urls,
-                                                     to: destinationDirectory,
-                                                     operation: operation,
-                                                     session: session)
+                    try FileOperationFileSystemTransfer.perform(urls,
+                                                                to: destinationDirectory,
+                                                                operation: operation,
+                                                                session: session)
                 }
 
                 refresh()
@@ -4238,138 +4238,6 @@ class FileManagerPaneController: NSViewController, NSTableViewDataSource, NSTabl
             lines.append(SZL10n.string("app.fileManager.archiveTransfer.sourceRemovalWarning"))
         }
         return lines.joined(separator: "\n")
-    }
-
-    private nonisolated func transferDroppedFileURLs(_ urls: [URL],
-                                                     to destinationDirectory: URL,
-                                                     operation: NSDragOperation,
-                                                     session: SZOperationSession) throws
-    {
-        let fileManager = FileManager.default
-        var skipAll = false
-        var overwriteAll = false
-
-        for (index, sourceURL) in urls.enumerated() {
-            if session.shouldCancel() {
-                return
-            }
-
-            let destinationFileURL = destinationDirectory
-                .appendingPathComponent(sourceURL.lastPathComponent)
-                .standardizedFileURL
-
-            if sourceURL == destinationFileURL {
-                continue
-            }
-
-            let fraction = Double(index) / Double(urls.count)
-            session.reportProgressFraction(fraction)
-            session.reportCurrentFileName(sourceURL.lastPathComponent)
-
-            if fileManager.fileExists(atPath: destinationFileURL.path) {
-                if skipAll { continue }
-                if !overwriteAll {
-                    let choice = session.requestChoice(with: .warning,
-                                                       title: "File already exists",
-                                                       message: overwritePromptMessage(sourceURL: sourceURL,
-                                                                                       destinationURL: destinationFileURL,
-                                                                                       fileManager: fileManager),
-                                                       buttonTitles: ["Replace", "Replace All", "Skip", "Skip All", "Cancel"])
-                    switch choice {
-                    case 0:
-                        break
-                    case 1:
-                        overwriteAll = true
-                    case 2:
-                        continue
-                    case 3:
-                        skipAll = true
-                        continue
-                    default:
-                        return
-                    }
-                }
-
-                try fileManager.removeItem(at: destinationFileURL)
-            }
-
-            if operation == .move {
-                try moveDroppedItemPreservingMetadata(from: sourceURL, to: destinationFileURL)
-            } else {
-                try copyDroppedItemPreservingMetadata(from: sourceURL, to: destinationFileURL)
-            }
-        }
-
-        session.reportProgressFraction(1.0)
-    }
-
-    private nonisolated func overwritePromptMessage(sourceURL: URL,
-                                                    destinationURL: URL,
-                                                    fileManager: FileManager) -> String
-    {
-        let sourceAttributes = try? fileManager.attributesOfItem(atPath: sourceURL.path)
-        let destinationAttributes = try? fileManager.attributesOfItem(atPath: destinationURL.path)
-        // FileAttributeKey.size is stored as NSNumber.
-        let sourceSize = (sourceAttributes?[.size] as? NSNumber)?.uint64Value ?? 0
-        let destinationSize = (destinationAttributes?[.size] as? NSNumber)?.uint64Value ?? 0
-        let sourceDate = sourceAttributes?[.modificationDate] as? Date
-        let destinationDate = destinationAttributes?[.modificationDate] as? Date
-        let dateFormatter = FileManagerViewPreferences.makeDateFormatter(dateStyle: .medium,
-                                                                         timeStyle: .medium)
-
-        return """
-        Destination: \(destinationURL.lastPathComponent)
-        Size: \(ByteCountFormatter.string(fromByteCount: Int64(destinationSize), countStyle: .file))  Modified: \(destinationDate.map { dateFormatter.string(from: $0) } ?? "—")
-
-        Source: \(sourceURL.lastPathComponent)
-        Size: \(ByteCountFormatter.string(fromByteCount: Int64(sourceSize), countStyle: .file))  Modified: \(sourceDate.map { dateFormatter.string(from: $0) } ?? "—")
-        """
-    }
-
-    private nonisolated func moveDroppedItemPreservingMetadata(from sourceURL: URL,
-                                                               to destinationURL: URL) throws
-    {
-        do {
-            try FileManager.default.moveItem(at: sourceURL, to: destinationURL)
-            return
-        } catch {
-            if FileManager.default.fileExists(atPath: destinationURL.path) {
-                throw error
-            }
-        }
-
-        try copyDroppedItemPreservingMetadata(from: sourceURL, to: destinationURL)
-        try FileManager.default.removeItem(at: sourceURL)
-    }
-
-    private nonisolated func copyDroppedItemPreservingMetadata(from sourceURL: URL,
-                                                               to destinationURL: URL) throws
-    {
-        let cloneResult = sourceURL.path.withCString { sourcePath in
-            destinationURL.path.withCString { destinationPath in
-                copyfile(sourcePath,
-                         destinationPath,
-                         nil,
-                         copyfile_flags_t(COPYFILE_ALL | COPYFILE_CLONE_FORCE))
-            }
-        }
-        if cloneResult == 0 {
-            return
-        }
-
-        let copyResult = sourceURL.path.withCString { sourcePath in
-            destinationURL.path.withCString { destinationPath in
-                copyfile(sourcePath,
-                         destinationPath,
-                         nil,
-                         copyfile_flags_t(COPYFILE_ALL))
-            }
-        }
-        if copyResult == 0 {
-            return
-        }
-
-        throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
     }
 
     private func archivePromiseFileType(for item: ArchiveItem) -> String {

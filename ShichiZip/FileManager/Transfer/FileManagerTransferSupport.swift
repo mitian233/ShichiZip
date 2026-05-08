@@ -391,6 +391,174 @@ enum FileOperationDropResolver {
     }
 }
 
+enum FileOperationFileSystemTransfer {
+    static func perform(_ urls: [URL],
+                        to destinationDirectory: URL,
+                        operation: NSDragOperation,
+                        session: SZOperationSession) throws
+    {
+        let standardizedURLs = urls.map(\.standardizedFileURL)
+        let standardizedDestinationDirectory = destinationDirectory.standardizedFileURL
+        let fileManager = FileManager.default
+        var skipAll = false
+        var overwriteAll = false
+
+        for (index, sourceURL) in standardizedURLs.enumerated() {
+            if session.shouldCancel() {
+                return
+            }
+
+            let destinationFileURL = standardizedDestinationDirectory
+                .appendingPathComponent(sourceURL.lastPathComponent)
+                .standardizedFileURL
+
+            if sourceURL == destinationFileURL {
+                continue
+            }
+
+            let fraction = Double(index) / Double(standardizedURLs.count)
+            session.reportProgressFraction(fraction)
+            session.reportCurrentFileName(sourceURL.lastPathComponent)
+
+            if fileManager.fileExists(atPath: destinationFileURL.path) {
+                if skipAll { continue }
+                if !overwriteAll {
+                    let choice = session.requestChoice(with: .warning,
+                                                       title: SZL10n.string("replace.confirmTitle"),
+                                                       message: overwritePromptMessage(sourceURL: sourceURL,
+                                                                                       destinationURL: destinationFileURL,
+                                                                                       fileManager: fileManager),
+                                                       buttonTitles: [SZL10n.string("common.yes"),
+                                                                      SZL10n.string("common.yesToAll"),
+                                                                      SZL10n.string("common.no"),
+                                                                      SZL10n.string("common.noToAll"),
+                                                                      SZL10n.string("common.cancel")])
+                    switch choice {
+                    case 0:
+                        break
+                    case 1:
+                        overwriteAll = true
+                    case 2:
+                        continue
+                    case 3:
+                        skipAll = true
+                        continue
+                    default:
+                        return
+                    }
+                }
+
+                try fileManager.removeItem(at: destinationFileURL)
+            }
+
+            if operation == .move {
+                try moveItemPreservingMetadata(from: sourceURL, to: destinationFileURL)
+            } else {
+                try copyItemPreservingMetadata(from: sourceURL, to: destinationFileURL)
+            }
+        }
+
+        session.reportProgressFraction(1.0)
+    }
+
+    private static func overwritePromptMessage(sourceURL: URL,
+                                               destinationURL: URL,
+                                               fileManager: FileManager) -> String
+    {
+        let sourceAttributes = try? fileManager.attributesOfItem(atPath: sourceURL.path)
+        let destinationAttributes = try? fileManager.attributesOfItem(atPath: destinationURL.path)
+        let sourceSize = (sourceAttributes?[.size] as? NSNumber)?.uint64Value ?? 0
+        let destinationSize = (destinationAttributes?[.size] as? NSNumber)?.uint64Value ?? 0
+        let sourceDate = sourceAttributes?[.modificationDate] as? Date
+        let destinationDate = destinationAttributes?[.modificationDate] as? Date
+        let dateFormatter = FileManagerViewPreferences.makeDateFormatter(dateStyle: .medium,
+                                                                         timeStyle: .medium)
+        let modifiedTitle = SZL10n.string("column.modified")
+        let destinationDescription = replacementFileDescription(fileName: destinationURL.lastPathComponent,
+                                                                size: destinationSize,
+                                                                modifiedDate: destinationDate,
+                                                                modifiedTitle: modifiedTitle,
+                                                                dateFormatter: dateFormatter)
+        let sourceDescription = replacementFileDescription(fileName: sourceURL.lastPathComponent,
+                                                           size: sourceSize,
+                                                           modifiedDate: sourceDate,
+                                                           modifiedTitle: modifiedTitle,
+                                                           dateFormatter: dateFormatter)
+
+        return """
+        \(SZL10n.string("replace.alreadyContains"))
+
+        \(SZL10n.string("replace.wouldYouLike"))
+        \(destinationDescription)
+
+        \(SZL10n.string("replace.withThisOne"))
+        \(sourceDescription)
+        """
+    }
+
+    private static func replacementFileDescription(fileName: String,
+                                                   size: UInt64,
+                                                   modifiedDate: Date?,
+                                                   modifiedTitle: String,
+                                                   dateFormatter: DateFormatter) -> String
+    {
+        let bytesText = SZL10n.string("replace.bytes")
+            .replacingOccurrences(of: "{0}", with: NumberFormatter.localizedString(from: NSNumber(value: size), number: .decimal))
+        let modifiedText = modifiedDate.map { dateFormatter.string(from: $0) } ?? "—"
+
+        return """
+        \(fileName)
+        \(bytesText)  \(modifiedTitle): \(modifiedText)
+        """
+    }
+
+    private static func moveItemPreservingMetadata(from sourceURL: URL,
+                                                   to destinationURL: URL) throws
+    {
+        do {
+            try FileManager.default.moveItem(at: sourceURL, to: destinationURL)
+            return
+        } catch {
+            if FileManager.default.fileExists(atPath: destinationURL.path) {
+                throw error
+            }
+        }
+
+        try copyItemPreservingMetadata(from: sourceURL, to: destinationURL)
+        try FileManager.default.removeItem(at: sourceURL)
+    }
+
+    private static func copyItemPreservingMetadata(from sourceURL: URL,
+                                                   to destinationURL: URL) throws
+    {
+        let cloneResult = sourceURL.path.withCString { sourcePath in
+            destinationURL.path.withCString { destinationPath in
+                copyfile(sourcePath,
+                         destinationPath,
+                         nil,
+                         copyfile_flags_t(COPYFILE_ALL | COPYFILE_CLONE_FORCE))
+            }
+        }
+        if cloneResult == 0 {
+            return
+        }
+
+        let copyResult = sourceURL.path.withCString { sourcePath in
+            destinationURL.path.withCString { destinationPath in
+                copyfile(sourcePath,
+                         destinationPath,
+                         nil,
+                         copyfile_flags_t(COPYFILE_ALL))
+            }
+        }
+        if copyResult == 0 {
+            return
+        }
+
+        throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno))
+    }
+}
+
 @MainActor
 enum FileOperationArchiveDestinationTransfer {
     static func perform(_ sourceURLs: [URL],
@@ -501,11 +669,13 @@ final class FileOperationDestinationPrompt {
             pathField.stringValue = defaultPath
             pathField.setContentHuggingPriority(.defaultLow, for: .horizontal)
             pathField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            pathField.setAccessibilityIdentifier("fileOperation.destinationPath")
 
             let browseButton = NSButton(title: SZL10n.string("compress.browse"), target: nil, action: nil)
             browseButton.bezelStyle = .rounded
             browseButton.setContentHuggingPriority(.required, for: .horizontal)
             browseButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+            browseButton.setAccessibilityIdentifier("fileOperation.browseButton")
 
             let label = NSTextField(labelWithString: labelTitle)
             label.font = .systemFont(ofSize: 12, weight: .medium)
