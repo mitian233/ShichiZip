@@ -23,7 +23,7 @@ enum ArchiveExtractionPostProcessor {
 }
 
 @MainActor
-class AppDelegate: NSObject, NSApplicationDelegate, FileManagerWindowCoordinating {
+class AppDelegate: NSObject, NSApplicationDelegate, FileManagerDocumentOpenRouting {
     private static let disableSmartQuickExtractRevealEnvironmentKey = "SHICHIZIP_DISABLE_SMART_QUICK_EXTRACT_REVEAL"
     private static let quickActionLogPrefix = "QuickActionTransport"
 
@@ -48,7 +48,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, FileManagerWindowCoordinatin
         return String(cString: value) != "1"
     }
 
-    private var fileManagerWindowControllers: [FileManagerWindowController] = []
+    private let fileManagerWindowRegistry = FileManagerWindowRegistry()
     private var benchmarkWindowController: BenchmarkWindowController?
     private var deleteTemporaryFilesWindowController: DeleteTemporaryFilesWindowController?
     private var settingsWindowController: SettingsWindowController?
@@ -83,11 +83,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, FileManagerWindowCoordinatin
     }
 
     func applicationShouldTerminate(_: NSApplication) -> NSApplication.TerminateReply {
-        let controllers = activeFileManagerWindowControllers()
-        for controller in controllers {
-            if !controller.prepareForClose() {
-                return .terminateCancel
-            }
+        guard fileManagerWindowRegistry.prepareForApplicationTermination() else {
+            return .terminateCancel
         }
         return .terminateNow
     }
@@ -138,8 +135,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, FileManagerWindowCoordinatin
 
     // MARK: - Menu Actions
 
-    @IBAction func showFileManager(_: Any?) {
-        showFileManagerWindow(reusableFileManagerWindowController() ?? makeFileManagerWindowController())
+    @IBAction func showFileManager(_ sender: Any?) {
+        fileManagerWindowRegistry.showFileManager(sender)
     }
 
     @IBAction func openArchives(_: Any?) {
@@ -158,35 +155,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, FileManagerWindowCoordinatin
 
     /// Open an archive file in the file manager (navigate into it inline)
     func openArchiveInFileManager(_ url: URL) {
-        let reusableController = reusableFileManagerWindowController()
-        let controller = reusableController ?? makeFileManagerWindowController()
-        if controller.navigateToArchive(url, revealWindow: false) {
-            showFileManagerWindow(controller)
-        } else if reusableController == nil {
-            removeFileManagerWindowController(controller)
-        }
+        fileManagerWindowRegistry.openArchiveInFileManager(url)
     }
 
     /// Open an archive in a NEW file manager window (for "Open With" from Finder)
     func openArchiveInNewFileManager(_ url: URL) {
-        let wc = makeFileManagerWindowController()
-        if wc.navigateToArchive(url, revealWindow: false) {
-            showFileManagerWindow(wc)
-        } else {
-            removeFileManagerWindowController(wc)
-        }
+        fileManagerWindowRegistry.openArchiveInNewFileManager(url)
     }
 
     @discardableResult
     func openFileSystemItemInNewFileManager(_ url: URL) -> Bool {
-        let controller = makeFileManagerWindowController()
-        if controller.openFileSystemItem(url, revealWindow: false) {
-            showFileManagerWindow(controller)
-            return true
-        }
-
-        removeFileManagerWindowController(controller)
-        return false
+        fileManagerWindowRegistry.openFileSystemItemInNewFileManager(url)
     }
 
     func beginDeferredArchiveOpen() {
@@ -282,30 +261,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, FileManagerWindowCoordinatin
                             for: parentWindow)
     }
 
-    private func activeFileManagerWindowControllers() -> [FileManagerWindowController] {
-        fileManagerWindowControllers
-    }
-
-    private func reusableFileManagerWindowController() -> FileManagerWindowController? {
-        if let keyController = NSApp.keyWindow?.windowController as? FileManagerWindowController,
-           fileManagerWindowControllers.contains(where: { $0 === keyController })
-        {
-            return keyController
-        }
-
-        if let mainController = NSApp.mainWindow?.windowController as? FileManagerWindowController,
-           fileManagerWindowControllers.contains(where: { $0 === mainController })
-        {
-            return mainController
-        }
-
-        return fileManagerWindowControllers.last { $0.window?.isVisible == true } ?? fileManagerWindowControllers.last
-    }
-
-    func archiveCoordinationSnapshots() -> [FileManagerNestedArchiveOpenSnapshot] {
-        activeFileManagerWindowControllers().flatMap { $0.archiveCoordinationSnapshots() }
-    }
-
     private func handleQuickActionLaunchURL(_ url: URL) {
         do {
             SZLog.info(Self.quickActionLogPrefix, "consuming launchURL=\(url.absoluteString)")
@@ -340,7 +295,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, FileManagerWindowCoordinatin
 
         for group in groups {
             SZLog.info(Self.quickActionLogPrefix, "show-in-file-manager opening new window urls=\(group.map(\.path).joined(separator: ", "))")
-            revealFileSystemItemsInNewWindow(group)
+            fileManagerWindowRegistry.revealFileSystemItemsInNewWindow(group)
         }
     }
 
@@ -475,61 +430,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, FileManagerWindowCoordinatin
         }
 
         return orderedParentPaths.compactMap { groups[$0] }
-    }
-
-    private func revealFileSystemItemsInNewWindow(_ urls: [URL]) {
-        let controller = makeFileManagerWindowController()
-
-        if controller.revealFileSystemItems(urls, revealWindow: false) {
-            showFileManagerWindow(controller)
-        } else {
-            removeFileManagerWindowController(controller)
-        }
-    }
-
-    private func makeFileManagerWindowController() -> FileManagerWindowController {
-        let controller = FileManagerWindowController(windowCoordinator: self)
-        controller.onWindowWillClose = { [weak self] closingController in
-            self?.removeFileManagerWindowController(closingController)
-        }
-        fileManagerWindowControllers.append(controller)
-        return controller
-    }
-
-    private func showFileManagerWindow(_ controller: FileManagerWindowController) {
-        cascadeFileManagerWindowIfNeeded(controller)
-        controller.showWindow(self)
-    }
-
-    private func cascadeFileManagerWindowIfNeeded(_ controller: FileManagerWindowController) {
-        guard let window = controller.window,
-              !window.isVisible,
-              !window.isMiniaturized
-        else { return }
-
-        window.cascadeTopLeft(from: firstFileManagerWindowTopLeftPoint(for: window,
-                                                                       excluding: controller))
-    }
-
-    private func firstFileManagerWindowTopLeftPoint(for window: NSWindow,
-                                                    excluding controller: FileManagerWindowController) -> NSPoint
-    {
-        guard let sourceWindow = activeFileManagerWindowControllers()
-            .filter({ $0 !== controller })
-            .compactMap(\.window)
-            .last(where: { $0.isVisible })
-        else {
-            return NSPoint(x: window.frame.minX, y: window.frame.maxY)
-        }
-
-        let sourceTopLeftPoint = NSPoint(x: sourceWindow.frame.minX,
-                                         y: sourceWindow.frame.maxY)
-        // The returned point is the first visible cascade position after the source window.
-        return window.cascadeTopLeft(from: sourceTopLeftPoint)
-    }
-
-    private func removeFileManagerWindowController(_ controller: FileManagerWindowController) {
-        fileManagerWindowControllers.removeAll { $0 === controller }
     }
 
     private nonisolated func smartQuickExtractPlan(for archiveURL: URL,
