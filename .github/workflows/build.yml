@@ -255,3 +255,37 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="${{ steps.signing.outputs.code_sign_identity }}" \
             test
+
+      - name: Collect failed test diagnostics
+        if: failure()
+        run: |
+          diagnostics_dir="build/test-diagnostics/${{ matrix.scheme }}-${{ matrix.target_arch }}"
+          test_logs_dir="build/DerivedData/${{ matrix.scheme }}/Logs/Test"
+          diagnostic_reports_dir="$diagnostics_dir/DiagnosticReports"
+
+          mkdir -p "$diagnostics_dir" "$diagnostic_reports_dir"
+
+          if [[ -d "$test_logs_dir" ]]; then
+            ditto "$test_logs_dir" "$diagnostics_dir/TestLogs"
+          fi
+
+          for source_dir in "$HOME/Library/Logs/DiagnosticReports" "/Library/Logs/DiagnosticReports"; do
+            [[ -d "$source_dir" ]] || continue
+            find "$source_dir" -type f \( \
+              -name "*.crash" -o \
+              -name "*.hang" -o \
+              -name "*.ips" -o \
+              -name "*.spin" -o \
+              -name "*spindump*" \
+            \) -print0 | while IFS= read -r -d '' report; do
+              cp -p "$report" "$diagnostic_reports_dir/$(basename "$report")"
+            done
+          done
+
+      - name: Upload failed test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-diagnostics-${{ matrix.artifact_prefix }}-${{ matrix.target_arch }}-${{ github.run_attempt }}
+          path: build/test-diagnostics/${{ matrix.scheme }}-${{ matrix.target_arch }}
+          if-no-files-found: warn
