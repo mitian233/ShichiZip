@@ -9,6 +9,7 @@ typedef NS_ENUM(NSInteger, SZDialogStyle) {
 };
 
 typedef void(NS_SWIFT_UI_ACTOR ^ SZModalDialogCompletionHandler)(NSInteger selectedButtonIndex);
+typedef BOOL(NS_SWIFT_UI_ACTOR ^ SZModalDialogShouldFinishHandler)(NSInteger selectedButtonIndex);
 
 @interface SZModalDialogController : NSWindowController
 
@@ -34,6 +35,8 @@ typedef void(NS_SWIFT_UI_ACTOR ^ SZModalDialogCompletionHandler)(NSInteger selec
 - (void)finishWithButtonIndex:(NSInteger)buttonIndex;
 
 - (void)setButtonEnabled:(BOOL)enabled atIndex:(NSInteger)index;
+
+@property (nonatomic, copy, nullable) SZModalDialogShouldFinishHandler shouldFinishHandler;
 
 @end
 

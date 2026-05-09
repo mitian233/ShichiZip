@@ -199,41 +199,29 @@ final class CompressDialogUITests: ShichiZipUITestCase {
         }
     }
 
-    /// Triggers Extract from the currently open archive, ensures
-    /// "separate folder" is checked so files go into a clean subdirectory,
-    /// clicks Extract, and waits for files to appear.
-    /// Returns the extraction subdirectory URL.
+    /// Triggers Extract from the currently open archive, which follows
+    /// upstream 7-Zip and uses the Copy dialog for archive contents.
+    /// Returns the extraction directory URL.
     private func extractViaApp(archivePath: String) throws -> URL {
         let archiveURL = URL(fileURLWithPath: archivePath)
 
-        // Open extract dialog
+        // Open the copy dialog used for archive contents.
         app.menuBars.menuBarItems["File"].click()
         app.menuBars.menuBarItems["File"].menus.menuItems["Extract…"].click()
 
-        let destinationField = app.comboBoxes.matching(identifier: "extract.destinationPath").firstMatch
+        let destinationField = app.comboBoxes.matching(identifier: "fileOperation.destinationPath").firstMatch
         XCTAssertTrue(destinationField.waitForExistence(timeout: 5))
 
-        let destPath = destinationField.value as? String ?? ""
-        XCTAssertFalse(destPath.isEmpty, "Destination should be prefilled")
-
-        // Ensure "separate folder" is checked — this extracts into a
-        // subdirectory named after the archive, avoiding overwrite
-        // conflicts with the original source files.
-        let splitCheckbox = app.checkBoxes.matching(identifier: "extract.splitDestination").firstMatch
-        if splitCheckbox.exists, splitCheckbox.value as? Int == 0 {
-            splitCheckbox.click()
-        }
-
-        // Click Extract
-        let extractButton = app.buttons.matching(identifier: "modal.button.1").firstMatch
-        XCTAssertTrue(extractButton.exists)
-        extractButton.click()
-
-        // The separate-folder option creates a subdirectory named after
-        // the archive (without extension).
         let archiveStem = archiveURL.deletingPathExtension().lastPathComponent
-        let extractDir = URL(fileURLWithPath: destPath)
-            .appendingPathComponent(archiveStem, isDirectory: true)
+        let extractDir = archiveURL.deletingLastPathComponent()
+            .appendingPathComponent("\(archiveStem)-extracted", isDirectory: true)
+        destinationField.click()
+        destinationField.selectAll()
+        destinationField.pasteText(extractDir.path)
+
+        let copyButton = app.buttons.matching(identifier: "modal.button.1").firstMatch
+        XCTAssertTrue(copyButton.exists)
+        copyButton.click()
 
         // Wait for extraction to complete
         let deadline = Date().addingTimeInterval(15)

@@ -20,12 +20,12 @@ struct ExtractQuickActionDefaults {
 }
 
 @MainActor
-final class ExtractDialogController: NSObject {
-    private struct ModeOption<Value: Equatable> {
-        let title: String
-        let value: Value
-    }
+private final class ExtractDialogValidationContext {
+    var resolvedResult: ExtractDialogResolvedResult?
+}
 
+@MainActor
+final class ExtractDialogController: NSObject {
     private enum DestinationHistory {
         private static var defaults: UserDefaults {
             .standard
@@ -126,69 +126,6 @@ final class ExtractDialogController: NSObject {
         }
     }
 
-    @MainActor
-    private final class DestinationPicker: NSObject {
-        private weak var ownerWindow: NSWindow?
-        private weak var pathField: NSComboBox?
-        private let baseDirectory: URL
-
-        init(ownerWindow: NSWindow?,
-             pathField: NSComboBox,
-             baseDirectory: URL)
-        {
-            self.ownerWindow = ownerWindow
-            self.pathField = pathField
-            self.baseDirectory = baseDirectory.standardizedFileURL
-        }
-
-        @objc func browse(_: Any?) {
-            let panel = NSOpenPanel()
-            panel.canChooseFiles = false
-            panel.canChooseDirectories = true
-            panel.canCreateDirectories = true
-            panel.prompt = SZL10n.string("app.choose")
-            panel.message = SZL10n.string("app.chooseDestination")
-            panel.directoryURL = suggestedDirectoryURL()
-
-            if let ownerWindow {
-                panel.beginSheetModal(for: ownerWindow) { [weak self] response in
-                    guard response == .OK, let url = panel.url else { return }
-                    self?.pathField?.stringValue = url.standardizedFileURL.path
-                }
-                return
-            }
-
-            guard panel.runModal() == .OK, let url = panel.url else { return }
-            pathField?.stringValue = url.standardizedFileURL.path
-        }
-
-        private func suggestedDirectoryURL() -> URL {
-            guard let pathField else {
-                return baseDirectory
-            }
-
-            let currentValue = pathField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !currentValue.isEmpty else {
-                return baseDirectory
-            }
-
-            let expandedPath = NSString(string: currentValue).expandingTildeInPath
-            let candidateURL = if NSString(string: expandedPath).isAbsolutePath {
-                URL(fileURLWithPath: expandedPath)
-            } else {
-                URL(fileURLWithPath: expandedPath, relativeTo: baseDirectory)
-            }
-
-            let standardizedURL = candidateURL.standardizedFileURL
-            var isDirectory: ObjCBool = false
-            if FileManager.default.fileExists(atPath: standardizedURL.path, isDirectory: &isDirectory) {
-                return isDirectory.boolValue ? standardizedURL : standardizedURL.deletingLastPathComponent()
-            }
-
-            return standardizedURL.deletingLastPathComponent()
-        }
-    }
-
     private let suggestedDestinationURL: URL
     private let baseDirectory: URL
     private let messageText: String?
@@ -197,15 +134,6 @@ final class ExtractDialogController: NSObject {
     private let suggestedSplitDestinationName: String?
     private let sourceArchiveAvailableForMoveToTrash: Bool
     private let sourceArchiveAvailableForQuarantineInheritance: Bool
-    private var destinationPicker: DestinationPicker?
-    private weak var splitNameField: NSTextField?
-    private weak var splitNameRow: NSView?
-    private weak var splitDestinationCheckbox: NSButton?
-    private weak var securePasswordField: NSSecureTextField?
-    private weak var plainPasswordField: NSTextField?
-    private weak var showPasswordCheckbox: NSButton?
-    private weak var passwordContainerView: NSView?
-    private weak var currentDialogWindow: NSWindow?
 
     init(suggestedDestinationURL: URL,
          baseDirectory: URL,
@@ -229,440 +157,96 @@ final class ExtractDialogController: NSObject {
     func runModal(for parentWindow: NSWindow?) async -> ExtractDialogResult? {
         let pathModeOptions = makePathModeOptions()
         let overwriteModeOptions = makeOverwriteModeOptions()
-        var selectedPath = suggestedDestinationURL.path
-        var selectedPathMode = DialogPreferences.pathMode(defaultValue: defaultPathMode,
-                                                          allowedValues: pathModeOptions.map(\ .value))
-        var selectedOverwriteMode = DialogPreferences.overwriteMode(defaultValue: .ask)
-        var enteredPassword = ""
-        var preserveNtSecurityInfo = DialogPreferences.preserveNtSecurityInfo()
-        var eliminateDuplicates = DialogPreferences.eliminateDuplicates()
-        var splitDestination = DialogPreferences.splitDestination()
-        var splitName = suggestedSplitDestinationName ?? ""
-        var showPassword = DialogPreferences.showPassword()
-        var moveArchiveToTrashAfterExtraction = SZSettings.bool(.moveArchiveToTrashAfterExtraction)
-        var inheritDownloadedFileQuarantine = SZSettings.bool(.inheritDownloadedFileQuarantine)
+        let initialState = ExtractDialogState(destinationPath: suggestedDestinationURL.path,
+                                              pathMode: DialogPreferences.pathMode(defaultValue: defaultPathMode,
+                                                                                   allowedValues: pathModeOptions.map(\.value)),
+                                              overwriteMode: DialogPreferences.overwriteMode(defaultValue: .ask),
+                                              password: "",
+                                              preserveNtSecurityInfo: DialogPreferences.preserveNtSecurityInfo(),
+                                              eliminateDuplicates: DialogPreferences.eliminateDuplicates(),
+                                              splitDestination: DialogPreferences.splitDestination(),
+                                              splitName: suggestedSplitDestinationName ?? "",
+                                              showPassword: DialogPreferences.showPassword(),
+                                              moveArchiveToTrashAfterExtraction: SZSettings.bool(.moveArchiveToTrashAfterExtraction),
+                                              inheritDownloadedFileQuarantine: SZSettings.bool(.inheritDownloadedFileQuarantine))
+        let contentController = ExtractDialogContentController(state: initialState,
+                                                               pathModeOptions: pathModeOptions,
+                                                               overwriteModeOptions: overwriteModeOptions,
+                                                               destinationHistoryEntries: DestinationHistory.entries(),
+                                                               baseDirectory: baseDirectory,
+                                                               sourceArchiveAvailableForMoveToTrash: sourceArchiveAvailableForMoveToTrash,
+                                                               sourceArchiveAvailableForQuarantineInheritance: sourceArchiveAvailableForQuarantineInheritance)
+        let controller = SZModalDialogController(style: .informational,
+                                                 title: SZL10n.string("extract.title"),
+                                                 message: messageText,
+                                                 buttonTitles: [SZL10n.string("common.cancel"), SZL10n.string("extract.title")],
+                                                 accessoryView: contentController.view,
+                                                 preferredFirstResponder: contentController.preferredFirstResponder,
+                                                 cancelButtonIndex: 0)
+        contentController.attach(to: controller.window)
 
-        while true {
-            let historyEntries = DestinationHistory.entries()
-            let pathField = NSComboBox(frame: NSRect(x: 0, y: 0, width: 260, height: 26))
-            pathField.isEditable = true
-            pathField.usesDataSource = false
-            pathField.completes = false
-            pathField.addItems(withObjectValues: historyEntries)
-            pathField.stringValue = selectedPath
-            pathField.setContentHuggingPriority(.defaultLow, for: .horizontal)
-            pathField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-            pathField.widthAnchor.constraint(greaterThanOrEqualToConstant: 300).isActive = true
-            pathField.setAccessibilityIdentifier("extract.destinationPath")
-
-            let browseButton = NSButton(title: SZL10n.string("compress.browse"), target: nil, action: nil)
-            browseButton.bezelStyle = .rounded
-            browseButton.setContentHuggingPriority(.required, for: .horizontal)
-            browseButton.setContentCompressionResistancePriority(.required, for: .horizontal)
-            browseButton.setAccessibilityIdentifier("extract.browseButton")
-
-            let pathRow = NSStackView(views: [pathField, browseButton])
-            pathRow.orientation = .horizontal
-            pathRow.alignment = .centerY
-            pathRow.spacing = 8
-            pathRow.distribution = .fill
-
-            let pathModePopup = NSPopUpButton(frame: .zero, pullsDown: false)
-            pathModeOptions.forEach { pathModePopup.addItem(withTitle: $0.title) }
-            if let selectedIndex = pathModeOptions.firstIndex(where: { $0.value == selectedPathMode }) {
-                pathModePopup.selectItem(at: selectedIndex)
-            }
-            pathModePopup.widthAnchor.constraint(greaterThanOrEqualToConstant: 280).isActive = true
-            pathModePopup.setAccessibilityIdentifier("extract.pathMode")
-
-            let overwriteModePopup = NSPopUpButton(frame: .zero, pullsDown: false)
-            overwriteModeOptions.forEach { overwriteModePopup.addItem(withTitle: $0.title) }
-            if let selectedIndex = overwriteModeOptions.firstIndex(where: { $0.value == selectedOverwriteMode }) {
-                overwriteModePopup.selectItem(at: selectedIndex)
-            }
-            overwriteModePopup.widthAnchor.constraint(greaterThanOrEqualToConstant: 280).isActive = true
-            overwriteModePopup.setAccessibilityIdentifier("extract.overwriteMode")
-
-            let splitDestinationCheckbox = NSButton(checkboxWithTitle: "",
-                                                    target: self,
-                                                    action: #selector(splitDestinationToggled(_:)))
-            splitDestinationCheckbox.state = splitDestination ? .on : .off
-            splitDestinationCheckbox.toolTip = SZL10n.string("app.extract.createSeparateFolder")
-            splitDestinationCheckbox.setAccessibilityLabel(SZL10n.string("app.extract.createSeparateFolder"))
-            splitDestinationCheckbox.setAccessibilityIdentifier("extract.splitDestination")
-
-            let splitNameField = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
-            splitNameField.placeholderString = "Archive"
-            splitNameField.stringValue = splitName
-            splitNameField.widthAnchor.constraint(greaterThanOrEqualToConstant: 220).isActive = true
-            splitNameField.setAccessibilityIdentifier("extract.splitName")
-
-            let splitRow = NSStackView(views: [splitDestinationCheckbox, splitNameField])
-            splitRow.orientation = .horizontal
-            splitRow.alignment = .centerY
-            splitRow.spacing = 8
-            splitRow.distribution = .fill
-
-            let securePasswordField = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
-            securePasswordField.placeholderString = SZL10n.string("app.optional")
-            securePasswordField.stringValue = enteredPassword
-            securePasswordField.widthAnchor.constraint(greaterThanOrEqualToConstant: 280).isActive = true
-            securePasswordField.setAccessibilityIdentifier("extract.password")
-
-            let plainPasswordField = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
-            plainPasswordField.placeholderString = SZL10n.string("app.optional")
-            plainPasswordField.stringValue = enteredPassword
-            plainPasswordField.widthAnchor.constraint(greaterThanOrEqualToConstant: 280).isActive = true
-            plainPasswordField.setAccessibilityIdentifier("extract.passwordPlain")
-
-            let passwordContainer = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
-            passwordContainer.translatesAutoresizingMaskIntoConstraints = false
-            passwordContainer.addSubview(securePasswordField)
-            passwordContainer.addSubview(plainPasswordField)
-            securePasswordField.translatesAutoresizingMaskIntoConstraints = false
-            plainPasswordField.translatesAutoresizingMaskIntoConstraints = false
-            NSLayoutConstraint.activate([
-                passwordContainer.widthAnchor.constraint(equalToConstant: 300),
-                passwordContainer.heightAnchor.constraint(equalToConstant: 24),
-                securePasswordField.topAnchor.constraint(equalTo: passwordContainer.topAnchor),
-                securePasswordField.leadingAnchor.constraint(equalTo: passwordContainer.leadingAnchor),
-                securePasswordField.trailingAnchor.constraint(equalTo: passwordContainer.trailingAnchor),
-                securePasswordField.bottomAnchor.constraint(equalTo: passwordContainer.bottomAnchor),
-                plainPasswordField.topAnchor.constraint(equalTo: passwordContainer.topAnchor),
-                plainPasswordField.leadingAnchor.constraint(equalTo: passwordContainer.leadingAnchor),
-                plainPasswordField.trailingAnchor.constraint(equalTo: passwordContainer.trailingAnchor),
-                plainPasswordField.bottomAnchor.constraint(equalTo: passwordContainer.bottomAnchor),
-            ])
-
-            let showPasswordCheckbox = NSButton(checkboxWithTitle: SZL10n.string("password.showPassword"),
-                                                target: self,
-                                                action: #selector(showPasswordToggled(_:)))
-            showPasswordCheckbox.state = showPassword ? .on : .off
-            showPasswordCheckbox.setAccessibilityIdentifier("extract.showPassword")
-
-            let ntSecurityCheckbox = NSButton(checkboxWithTitle: SZL10n.string("extract.restoreSecurity"),
-                                              target: nil,
-                                              action: nil)
-            ntSecurityCheckbox.state = preserveNtSecurityInfo ? .on : .off
-            ntSecurityCheckbox.setAccessibilityIdentifier("extract.ntSecurity")
-
-            let eliminateDuplicatesCheckbox = NSButton(checkboxWithTitle: SZL10n.string("extract.eliminateDuplication"),
-                                                       target: nil,
-                                                       action: nil)
-            eliminateDuplicatesCheckbox.state = eliminateDuplicates ? .on : .off
-            eliminateDuplicatesCheckbox.setAccessibilityIdentifier("extract.eliminateDuplicates")
-
-            let moveArchiveToTrashCheckbox = NSButton(checkboxWithTitle: SZL10n.string("app.extract.moveToTrash"),
-                                                      target: nil,
-                                                      action: nil)
-            moveArchiveToTrashCheckbox.state = moveArchiveToTrashAfterExtraction ? .on : .off
-            moveArchiveToTrashCheckbox.isEnabled = sourceArchiveAvailableForMoveToTrash
-            moveArchiveToTrashCheckbox.alphaValue = sourceArchiveAvailableForMoveToTrash ? 1.0 : 0.55
-            moveArchiveToTrashCheckbox.setAccessibilityIdentifier("extract.moveToTrash")
-
-            let inheritDownloadedFileQuarantineCheckbox = NSButton(checkboxWithTitle: SZL10n.string("app.extract.inheritQuarantine"),
-                                                                   target: nil,
-                                                                   action: nil)
-            inheritDownloadedFileQuarantineCheckbox.state = inheritDownloadedFileQuarantine ? .on : .off
-            inheritDownloadedFileQuarantineCheckbox.isEnabled = sourceArchiveAvailableForQuarantineInheritance
-            inheritDownloadedFileQuarantineCheckbox.alphaValue = sourceArchiveAvailableForQuarantineInheritance ? 1.0 : 0.55
-            inheritDownloadedFileQuarantineCheckbox.setAccessibilityIdentifier("extract.inheritQuarantine")
-
-            let accessoryView = makeAccessoryView(pathRow: pathRow,
-                                                  splitRow: splitRow,
-                                                  pathModePopup: pathModePopup,
-                                                  overwriteModePopup: overwriteModePopup,
-                                                  passwordContainer: passwordContainer,
-                                                  showPasswordCheckbox: showPasswordCheckbox,
-                                                  moveArchiveToTrashCheckbox: moveArchiveToTrashCheckbox,
-                                                  inheritDownloadedFileQuarantineCheckbox: inheritDownloadedFileQuarantineCheckbox,
-                                                  ntSecurityCheckbox: ntSecurityCheckbox,
-                                                  eliminateDuplicatesCheckbox: eliminateDuplicatesCheckbox)
-
-            let controller = SZModalDialogController(style: .informational,
-                                                     title: SZL10n.string("extract.title"),
-                                                     message: messageText,
-                                                     buttonTitles: [SZL10n.string("common.cancel"), SZL10n.string("extract.title")],
-                                                     accessoryView: accessoryView,
-                                                     preferredFirstResponder: pathField,
-                                                     cancelButtonIndex: 0)
-            currentDialogWindow = controller.window
-            self.splitNameField = splitNameField
-            splitNameRow = splitRow
-            self.splitDestinationCheckbox = splitDestinationCheckbox
-            self.securePasswordField = securePasswordField
-            self.plainPasswordField = plainPasswordField
-            self.showPasswordCheckbox = showPasswordCheckbox
-            passwordContainerView = passwordContainer
-            updateSplitDestinationUI()
-            updatePasswordVisibilityUI(moveFocus: false)
-
-            let picker = DestinationPicker(ownerWindow: controller.window,
-                                           pathField: pathField,
-                                           baseDirectory: baseDirectory)
-            destinationPicker = picker
-            browseButton.target = picker
-            browseButton.action = #selector(DestinationPicker.browse(_:))
-
-            defer {
-                destinationPicker = nil
-                currentDialogWindow = nil
-                self.splitNameField = nil
-                self.splitNameRow = nil
-                self.splitDestinationCheckbox = nil
-                self.securePasswordField = nil
-                self.plainPasswordField = nil
-                self.showPasswordCheckbox = nil
-                self.passwordContainerView = nil
+        let resultBuilder = ExtractDialogResultBuilder(baseDirectory: baseDirectory)
+        let validationContext = ExtractDialogValidationContext()
+        controller.shouldFinishHandler = { buttonIndex in
+            guard buttonIndex == 1 else {
+                return true
             }
 
-            guard await controller.modalResult(for: parentWindow) == 1 else {
-                return nil
-            }
-
-            selectedPath = pathField.stringValue
-            splitDestination = splitDestinationCheckbox.state == .on
-            splitName = splitNameField.stringValue
-            enteredPassword = visiblePasswordValue()
-            showPassword = showPasswordCheckbox.state == .on
-            selectedPathMode = pathModeOptions[pathModePopup.indexOfSelectedItem].value
-            selectedOverwriteMode = overwriteModeOptions[overwriteModePopup.indexOfSelectedItem].value
-            preserveNtSecurityInfo = ntSecurityCheckbox.state == .on
-            eliminateDuplicates = eliminateDuplicatesCheckbox.state == .on
-            moveArchiveToTrashAfterExtraction = moveArchiveToTrashCheckbox.state == .on
-            inheritDownloadedFileQuarantine = inheritDownloadedFileQuarantineCheckbox.state == .on
-
+            contentController.updateStateFromControls()
             do {
-                let baseDestinationURL = try resolveDestinationDirectoryURL(from: selectedPath)
-                let destinationURL = try resolveFinalDestinationURL(baseDestinationURL: baseDestinationURL,
-                                                                    splitDestination: splitDestination,
-                                                                    splitName: splitName)
-                let password = Self.normalizedPassword(from: enteredPassword)
-                DestinationHistory.record(baseDestinationURL.path)
-                DialogPreferences.record(pathMode: selectedPathMode,
-                                         overwriteMode: selectedOverwriteMode,
-                                         preserveNtSecurityInfo: preserveNtSecurityInfo,
-                                         eliminateDuplicates: eliminateDuplicates,
-                                         splitDestination: splitDestination,
-                                         showPassword: showPassword)
-                SZSettings.set(moveArchiveToTrashAfterExtraction, for: .moveArchiveToTrashAfterExtraction)
-                SZSettings.set(inheritDownloadedFileQuarantine, for: .inheritDownloadedFileQuarantine)
-                return ExtractDialogResult(destinationURL: destinationURL,
-                                           overwriteMode: selectedOverwriteMode,
-                                           pathMode: selectedPathMode,
-                                           password: password,
-                                           preserveNtSecurityInfo: preserveNtSecurityInfo,
-                                           eliminateDuplicates: eliminateDuplicates,
-                                           moveArchiveToTrashAfterExtraction: moveArchiveToTrashAfterExtraction,
-                                           inheritDownloadedFileQuarantine: inheritDownloadedFileQuarantine)
+                validationContext.resolvedResult = try resultBuilder.buildResult(from: contentController.state)
+                return true
             } catch {
-                // Present validation failures outside the parent window sheet stack.
                 szPresentError(error, for: nil)
+                return false
             }
         }
+
+        let buttonIndex = await controller.modalResult(for: parentWindow)
+        controller.shouldFinishHandler = nil
+
+        guard buttonIndex == 1,
+              let resolvedResult = validationContext.resolvedResult
+        else {
+            return nil
+        }
+
+        let state = contentController.state
+        DestinationHistory.record(resolvedResult.baseDestinationURL.path)
+        DialogPreferences.record(pathMode: state.pathMode,
+                                 overwriteMode: state.overwriteMode,
+                                 preserveNtSecurityInfo: state.preserveNtSecurityInfo,
+                                 eliminateDuplicates: state.eliminateDuplicates,
+                                 splitDestination: state.splitDestination,
+                                 showPassword: state.showPassword)
+        SZSettings.set(state.moveArchiveToTrashAfterExtraction, for: .moveArchiveToTrashAfterExtraction)
+        SZSettings.set(state.inheritDownloadedFileQuarantine, for: .inheritDownloadedFileQuarantine)
+        return resolvedResult.result
     }
 
-    private func makePathModeOptions() -> [ModeOption<SZPathMode>] {
-        var options: [ModeOption<SZPathMode>] = []
+    private func makePathModeOptions() -> [ExtractDialogOption<SZPathMode>] {
+        var options: [ExtractDialogOption<SZPathMode>] = []
         if showsCurrentPathsOption {
-            options.append(ModeOption(title: SZL10n.string("app.extract.currentPaths"), value: .currentPaths))
+            options.append(ExtractDialogOption(title: SZL10n.string("app.extract.currentPaths"), value: .currentPaths))
         }
-        options.append(ModeOption(title: SZL10n.string("extract.fullPathnames"), value: .fullPaths))
-        options.append(ModeOption(title: SZL10n.string("extract.noPathnames"), value: .noPaths))
-        options.append(ModeOption(title: SZL10n.string("extract.absolutePathnames"), value: .absolutePaths))
+        options.append(ExtractDialogOption(title: SZL10n.string("extract.fullPathnames"), value: .fullPaths))
+        options.append(ExtractDialogOption(title: SZL10n.string("extract.noPathnames"), value: .noPaths))
+        options.append(ExtractDialogOption(title: SZL10n.string("extract.absolutePathnames"), value: .absolutePaths))
         return options
     }
 
-    private func makeOverwriteModeOptions() -> [ModeOption<SZOverwriteMode>] {
+    private func makeOverwriteModeOptions() -> [ExtractDialogOption<SZOverwriteMode>] {
         [
-            ModeOption(title: SZL10n.string("extract.askBeforeOverwrite"), value: .ask),
-            ModeOption(title: SZL10n.string("extract.overwriteWithoutPrompt"), value: .overwrite),
-            ModeOption(title: SZL10n.string("extract.skipExisting"), value: .skip),
-            ModeOption(title: SZL10n.string("extract.autoRename"), value: .rename),
-            ModeOption(title: SZL10n.string("extract.autoRenameExisting"), value: .renameExisting),
+            ExtractDialogOption(title: SZL10n.string("extract.askBeforeOverwrite"), value: .ask),
+            ExtractDialogOption(title: SZL10n.string("extract.overwriteWithoutPrompt"), value: .overwrite),
+            ExtractDialogOption(title: SZL10n.string("extract.skipExisting"), value: .skip),
+            ExtractDialogOption(title: SZL10n.string("extract.autoRename"), value: .rename),
+            ExtractDialogOption(title: SZL10n.string("extract.autoRenameExisting"), value: .renameExisting),
         ]
     }
 
-    private func makeAccessoryView(pathRow: NSView,
-                                   splitRow: NSView,
-                                   pathModePopup: NSPopUpButton,
-                                   overwriteModePopup: NSPopUpButton,
-                                   passwordContainer: NSView,
-                                   showPasswordCheckbox: NSButton,
-                                   moveArchiveToTrashCheckbox: NSButton,
-                                   inheritDownloadedFileQuarantineCheckbox: NSButton,
-                                   ntSecurityCheckbox: NSButton,
-                                   eliminateDuplicatesCheckbox: NSButton) -> NSView
-    {
-        let formStack = NSStackView(views: [
-            makeFormRow(label: SZL10n.string("extract.extractTo"), control: pathRow),
-            makeFormRow(label: SZL10n.string("app.extract.separateFolder"), control: splitRow),
-            makeFormRow(label: SZL10n.string("extract.pathMode"), control: pathModePopup),
-            makeFormRow(label: SZL10n.string("extract.overwriteMode"), control: overwriteModePopup),
-            makeFormRow(label: SZL10n.string("password.password") + ":", control: passwordContainer),
-        ])
-        formStack.orientation = .vertical
-        formStack.alignment = .leading
-        formStack.spacing = 10
-
-        let passwordOptionsRow = NSStackView(views: [NSView(), showPasswordCheckbox])
-        passwordOptionsRow.orientation = .horizontal
-        passwordOptionsRow.alignment = .centerY
-        passwordOptionsRow.spacing = 12
-        passwordOptionsRow.distribution = .fill
-        passwordOptionsRow.views.first?.widthAnchor.constraint(equalToConstant: 128).isActive = true
-        formStack.addArrangedSubview(passwordOptionsRow)
-
-        let optionsLabel = NSTextField(labelWithString: SZL10n.string("compress.options"))
-        optionsLabel.font = .systemFont(ofSize: 12, weight: .semibold)
-
-        let optionsStack = NSStackView(views: [
-            moveArchiveToTrashCheckbox,
-            inheritDownloadedFileQuarantineCheckbox,
-            ntSecurityCheckbox,
-            eliminateDuplicatesCheckbox,
-        ])
-        optionsStack.orientation = .vertical
-        optionsStack.alignment = .leading
-        optionsStack.spacing = 8
-
-        let contentStack = NSStackView(views: [formStack, optionsLabel, optionsStack])
-        contentStack.orientation = .vertical
-        contentStack.alignment = .leading
-        contentStack.spacing = 12
-        contentStack.translatesAutoresizingMaskIntoConstraints = false
-
-        let wrapper = NSView(frame: NSRect(x: 0, y: 0, width: 520, height: 320))
-        wrapper.translatesAutoresizingMaskIntoConstraints = false
-        wrapper.addSubview(contentStack)
-
-        NSLayoutConstraint.activate([
-            wrapper.widthAnchor.constraint(equalToConstant: 520),
-            contentStack.topAnchor.constraint(equalTo: wrapper.topAnchor),
-            contentStack.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor),
-            contentStack.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor),
-            contentStack.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor),
-        ])
-
-        return wrapper
-    }
-
-    private func makeFormRow(label title: String, control: NSView) -> NSView {
-        let label = makeLabel(title)
-        label.alignment = .right
-        label.widthAnchor.constraint(equalToConstant: 128).isActive = true
-
-        let row = NSStackView(views: [label, control])
-        row.orientation = .horizontal
-        row.alignment = .centerY
-        row.spacing = 12
-        row.distribution = .fill
-        return row
-    }
-
-    private func resolveDestinationDirectoryURL(from enteredPath: String) throws -> URL {
-        let trimmedPath = enteredPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedPath.isEmpty else {
-            throw NSError(domain: NSCocoaErrorDomain,
-                          code: NSFileNoSuchFileError,
-                          userInfo: [NSLocalizedDescriptionKey: "Enter a destination folder."])
-        }
-
-        let expandedPath = NSString(string: trimmedPath).expandingTildeInPath
-        let candidateURL = if NSString(string: expandedPath).isAbsolutePath {
-            URL(fileURLWithPath: expandedPath)
-        } else {
-            URL(fileURLWithPath: expandedPath, relativeTo: baseDirectory)
-        }
-
-        let standardizedURL = candidateURL.standardizedFileURL
-        var isDirectory: ObjCBool = false
-
-        if FileManager.default.fileExists(atPath: standardizedURL.path, isDirectory: &isDirectory) {
-            guard isDirectory.boolValue else {
-                throw NSError(domain: NSCocoaErrorDomain,
-                              code: NSFileWriteInvalidFileNameError,
-                              userInfo: [
-                                  NSFilePathErrorKey: standardizedURL.path,
-                                  NSLocalizedDescriptionKey: "The destination path must be a folder.",
-                              ])
-            }
-            return standardizedURL
-        }
-
-        try FileManager.default.createDirectory(at: standardizedURL, withIntermediateDirectories: true)
-        return standardizedURL
-    }
-
-    private func resolveFinalDestinationURL(baseDestinationURL: URL,
-                                            splitDestination: Bool,
-                                            splitName: String) throws -> URL
-    {
-        guard splitDestination else {
-            return baseDestinationURL
-        }
-
-        let trimmedName = splitName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else {
-            throw NSError(domain: NSCocoaErrorDomain,
-                          code: NSFileWriteInvalidFileNameError,
-                          userInfo: [NSLocalizedDescriptionKey: "Enter a destination folder name."])
-        }
-
-        return baseDestinationURL.appendingPathComponent(trimmedName, isDirectory: true).standardizedFileURL
-    }
-
     nonisolated static func normalizedPassword(from rawValue: String) -> String? {
-        rawValue.isEmpty ? nil : rawValue
-    }
-
-    private func visiblePasswordValue() -> String {
-        if showPasswordCheckbox?.state == .on {
-            return plainPasswordField?.stringValue ?? securePasswordField?.stringValue ?? ""
-        }
-        return securePasswordField?.stringValue ?? plainPasswordField?.stringValue ?? ""
-    }
-
-    @objc private func splitDestinationToggled(_: Any?) {
-        updateSplitDestinationUI()
-    }
-
-    @objc private func showPasswordToggled(_: Any?) {
-        updatePasswordVisibilityUI(moveFocus: true)
-    }
-
-    private func updateSplitDestinationUI() {
-        let enabled = splitDestinationCheckbox?.state == .on
-        splitNameField?.isEnabled = enabled
-        splitNameField?.alphaValue = enabled ? 1.0 : 0.55
-    }
-
-    private func updatePasswordVisibilityUI(moveFocus: Bool) {
-        let showPassword = showPasswordCheckbox?.state == .on
-        let currentValue = visiblePasswordValue()
-
-        securePasswordField?.stringValue = currentValue
-        plainPasswordField?.stringValue = currentValue
-        securePasswordField?.isHidden = showPassword
-        securePasswordField?.isEnabled = !showPassword
-        plainPasswordField?.isHidden = !showPassword
-        plainPasswordField?.isEnabled = showPassword
-
-        guard moveFocus, let currentDialogWindow else {
-            return
-        }
-
-        if showPassword, let plainPasswordField {
-            currentDialogWindow.makeFirstResponder(plainPasswordField)
-        } else if let securePasswordField {
-            currentDialogWindow.makeFirstResponder(securePasswordField)
-        }
-    }
-
-    private func makeLabel(_ title: String) -> NSTextField {
-        let label = NSTextField(labelWithString: title)
-        label.font = .systemFont(ofSize: 12, weight: .medium)
-        return label
+        ExtractDialogResultBuilder.normalizedPassword(from: rawValue)
     }
 }
 

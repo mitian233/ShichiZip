@@ -335,6 +335,10 @@ static NSString* SZModalDialogAppDisplayName(void) {
 }
 
 - (void)buttonClicked:(NSButton*)sender {
+    if (self.shouldFinishHandler && !self.shouldFinishHandler(sender.tag)) {
+        return;
+    }
+
     [self finishWithButtonIndex:sender.tag];
 }
 

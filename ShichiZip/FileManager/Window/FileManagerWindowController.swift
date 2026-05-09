@@ -340,6 +340,7 @@ class FileManagerWindowController: NSWindowController, NSWindowDelegate, NSUserI
 
     @objc func extractArchive(_: Any?) {
         FileManagerArchiveCommandSupport.extractArchive(from: activePane,
+                                                        inactivePaneSnapshot: inactivePane?.snapshot,
                                                         parentWindow: window,
                                                         refreshPaneDisplayingDirectory: refreshPaneDisplayingDirectory,
                                                         showError: showErrorAlert)

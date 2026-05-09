@@ -31,20 +31,14 @@ final class ExtractDialogUITests: ShichiZipUITestCase {
         let (archiveURL, _) = try makeTestArchive(named: "dialog",
                                                   payloads: ["payload.txt": "This is test content for extraction."])
 
-        // Navigate to the directory and open the archive
+        // Navigate to the directory containing the archive and select it.
         navigateLeftPane(to: archiveURL.deletingLastPathComponent().path)
         let table = leftPaneTable
         XCTAssertTrue(table.waitForExistence(timeout: 10))
 
         let archiveCell = table.cells.staticTexts[archiveURL.lastPathComponent]
         XCTAssertTrue(archiveCell.waitForExistence(timeout: 5))
-        archiveCell.doubleClick()
-
-        // Wait for archive to open (path field updates)
-        let pathField = leftPanePathField
-        let openPredicate = NSPredicate(format: "value CONTAINS %@", archiveURL.lastPathComponent)
-        let openExpectation = XCTNSPredicateExpectation(predicate: openPredicate, object: pathField)
-        wait(for: [openExpectation], timeout: 10)
+        archiveCell.click()
 
         // Trigger Extract via menu
         app.menuBars.menuBarItems["File"].click()
@@ -67,6 +61,37 @@ final class ExtractDialogUITests: ShichiZipUITestCase {
         cancelButton.click()
     }
 
+    func testExtractFromOpenArchiveShowsCopyDialog() throws {
+        let (archiveURL, _) = try makeTestArchive(named: "copy-dialog",
+                                                  payloads: ["payload.txt": "This is test content for extraction."])
+
+        navigateLeftPane(to: archiveURL.deletingLastPathComponent().path)
+        let table = leftPaneTable
+        XCTAssertTrue(table.waitForExistence(timeout: 10))
+
+        let archiveCell = table.cells.staticTexts[archiveURL.lastPathComponent]
+        XCTAssertTrue(archiveCell.waitForExistence(timeout: 5))
+        archiveCell.doubleClick()
+
+        let pathField = leftPanePathField
+        let openPredicate = NSPredicate(format: "value CONTAINS %@", archiveURL.lastPathComponent)
+        let openExpectation = XCTNSPredicateExpectation(predicate: openPredicate, object: pathField)
+        wait(for: [openExpectation], timeout: 10)
+
+        app.menuBars.menuBarItems["File"].click()
+        app.menuBars.menuBarItems["File"].menus.menuItems["Extract…"].click()
+
+        let destinationField = app.comboBoxes.matching(identifier: "fileOperation.destinationPath").firstMatch
+        XCTAssertTrue(destinationField.waitForExistence(timeout: 5),
+                      "Extract from an open archive should use the Copy dialog destination field")
+        XCTAssertFalse(app.comboBoxes.matching(identifier: "extract.destinationPath").firstMatch.exists,
+                       "Extract dialog should not be shown for open archive contents")
+
+        let cancelButton = app.buttons.matching(identifier: "modal.button.0").firstMatch
+        XCTAssertTrue(cancelButton.exists)
+        cancelButton.click()
+    }
+
     func testExtractDialogCancelDoesNotCrash() throws {
         let (archiveURL, _) = try makeTestArchive(named: "cancel",
                                                   payloads: ["payload.txt": "This is test content for extraction."])
@@ -84,12 +109,12 @@ final class ExtractDialogUITests: ShichiZipUITestCase {
         let openExpectation = XCTNSPredicateExpectation(predicate: openPredicate, object: pathField)
         wait(for: [openExpectation], timeout: 10)
 
-        // Open and cancel extract dialog multiple times to check stability
+        // Open and cancel the copy dialog multiple times to check stability
         for _ in 0 ..< 3 {
             app.menuBars.menuBarItems["File"].click()
             app.menuBars.menuBarItems["File"].menus.menuItems["Extract…"].click()
 
-            let destinationField = app.comboBoxes.matching(identifier: "extract.destinationPath").firstMatch
+            let destinationField = app.comboBoxes.matching(identifier: "fileOperation.destinationPath").firstMatch
             XCTAssertTrue(destinationField.waitForExistence(timeout: 5))
 
             let cancelButton = app.buttons.matching(identifier: "modal.button.0").firstMatch
@@ -121,30 +146,23 @@ final class ExtractDialogUITests: ShichiZipUITestCase {
         let openExpectation = XCTNSPredicateExpectation(predicate: openPredicate, object: pathField)
         wait(for: [openExpectation], timeout: 10)
 
-        // Open extract dialog
+        // Open the upstream-style copy dialog for archive contents.
         app.menuBars.menuBarItems["File"].click()
         app.menuBars.menuBarItems["File"].menus.menuItems["Extract…"].click()
 
-        let destinationField = app.comboBoxes.matching(identifier: "extract.destinationPath").firstMatch
+        let destinationField = app.comboBoxes.matching(identifier: "fileOperation.destinationPath").firstMatch
         XCTAssertTrue(destinationField.waitForExistence(timeout: 5))
 
-        // Read the prefilled destination path — it should be the archive's containing directory
-        let prefilledPath = destinationField.value as? String ?? ""
-        XCTAssertFalse(prefilledPath.isEmpty, "Destination field should have a prefilled path")
+        let extractDir = archiveURL.deletingLastPathComponent().appendingPathComponent("extract-output", isDirectory: true)
+        destinationField.click()
+        destinationField.selectAll()
+        destinationField.pasteText(extractDir.path)
 
-        // Uncheck "separate folder" to extract directly into the prefilled destination
-        let splitCheckbox = app.checkBoxes.matching(identifier: "extract.splitDestination").firstMatch
-        if splitCheckbox.exists, splitCheckbox.value as? Int == 1 {
-            splitCheckbox.click()
-        }
-
-        // Click Extract button
-        let extractButton = app.buttons.matching(identifier: "modal.button.1").firstMatch
-        XCTAssertTrue(extractButton.exists, "Extract button should exist")
-        extractButton.click()
+        let copyButton = app.buttons.matching(identifier: "modal.button.1").firstMatch
+        XCTAssertTrue(copyButton.exists, "Copy button should exist")
+        copyButton.click()
 
         // Wait for extraction to complete — poll for output files
-        let extractDir = URL(fileURLWithPath: prefilledPath)
         let deadline = Date().addingTimeInterval(15)
         var extractedFiles: [String] = []
         while Date() < deadline {
@@ -183,19 +201,16 @@ final class ExtractDialogUITests: ShichiZipUITestCase {
         app.menuBars.menuBarItems["File"].click()
         app.menuBars.menuBarItems["File"].menus.menuItems["Extract…"].click()
 
-        let destinationField = app.comboBoxes.matching(identifier: "extract.destinationPath").firstMatch
+        let destinationField = app.comboBoxes.matching(identifier: "fileOperation.destinationPath").firstMatch
         XCTAssertTrue(destinationField.waitForExistence(timeout: 5))
-        let destinationPath = destinationField.value as? String ?? ""
-        XCTAssertFalse(destinationPath.isEmpty)
+        let destinationURL = directoryURL.appendingPathComponent("password-extract", isDirectory: true)
+        destinationField.click()
+        destinationField.selectAll()
+        destinationField.pasteText(destinationURL.path)
 
-        let splitCheckbox = app.checkBoxes.matching(identifier: "extract.splitDestination").firstMatch
-        if splitCheckbox.exists, splitCheckbox.value as? Int == 1 {
-            splitCheckbox.click()
-        }
-
-        let extractButton = app.buttons.matching(identifier: "modal.button.1").firstMatch
-        XCTAssertTrue(extractButton.exists)
-        extractButton.click()
+        let copyButton = app.buttons.matching(identifier: "modal.button.1").firstMatch
+        XCTAssertTrue(copyButton.exists)
+        copyButton.click()
 
         let passwordField = waitForPasswordPromptField()
         XCTAssertTrue(passwordField.exists,
@@ -217,7 +232,7 @@ final class ExtractDialogUITests: ShichiZipUITestCase {
 
         app.buttons.matching(identifier: "modal.button.1").firstMatch.click()
 
-        let extractedURL = URL(fileURLWithPath: destinationPath).appendingPathComponent(payloadName)
+        let extractedURL = destinationURL.appendingPathComponent(payloadName)
         XCTAssertTrue(waitForFile(at: extractedURL),
                       "Extraction should succeed when the pasted password replaces the selected wrong password")
         XCTAssertEqual(try String(contentsOf: extractedURL, encoding: .utf8), payloadContent)
