@@ -71,6 +71,11 @@ def strip_accelerator(text: str) -> str:
 # Each entry: upstream_id → "dotted.key"
 # This defines which upstream strings we reuse and their stable app key names.
 UPSTREAM_KEY_MAP: dict[int, str] = {
+    # --- Language metadata (section 0) ---
+    0: "metadata.productName",
+    1: "metadata.languageEnglishName",
+    2: "metadata.languageNativeName",
+
     # --- Common buttons (section 401) ---
     401: "common.ok",
     402: "common.cancel",
@@ -286,6 +291,20 @@ UPSTREAM_KEY_MAP: dict[int, str] = {
     2100: "settings.options",
     2101: "settings.language",
     2102: "settings.languageLabel",
+    2103: "settings.editor",
+    2104: "settings.editorPath",
+    2105: "settings.diffPath",
+
+    # --- System integration settings (section 2200) ---
+    2200: "settings.system",
+    2201: "settings.associateWith",
+    2202: "settings.allUsers",
+
+    # --- Shell integration settings (section 2301) ---
+    2301: "settings.integrateShellContextMenu",
+    2302: "settings.cascadedContextMenu",
+    2303: "settings.contextMenuItems",
+    2304: "settings.contextMenuIcons",
 
     # --- Folders settings (section 2400) ---
     2400: "settings.folders",
@@ -306,6 +325,10 @@ UPSTREAM_KEY_MAP: dict[int, str] = {
     2506: "settings.singleClick",
     2507: "settings.altSelectionMode",
     2508: "settings.largeMemoryPages",
+
+    # --- About dialog (section 2900) ---
+    2900: "about.title",
+    2901: "about.freeSoftware",
 
     # --- General archive messages (section 3000) ---
     3000: "archive.memoryAllocationFailed",
@@ -407,6 +430,7 @@ UPSTREAM_KEY_MAP: dict[int, str] = {
     3802: "password.reenterPassword",
     3803: "password.showPassword",
     3804: "password.passwordsMismatch",
+    3805: "password.useAscii",
     3806: "password.tooLong",
     3807: "password.password",
 
@@ -502,6 +526,7 @@ UPSTREAM_KEY_MAP: dict[int, str] = {
     6105: "delete.askMultiple",
     6106: "delete.deleting",
     6107: "delete.errorDeleting",
+    6108: "delete.longPathRecycleBinUnavailable",
 
     # --- Create folder/file (section 6300) ---
     6300: "create.folder",
@@ -526,6 +551,12 @@ UPSTREAM_KEY_MAP: dict[int, str] = {
     6602: "properties.diagnosticMessages",
     6603: "properties.message",
 
+    # --- Root locations (section 7100) ---
+    7100: "location.computer",
+    7101: "location.network",
+    7102: "location.documents",
+    7103: "location.system",
+
     # --- Toolbar buttons (section 7200) ---
     7200: "toolbar.add",
     7201: "toolbar.extract",
@@ -546,6 +577,14 @@ UPSTREAM_KEY_MAP: dict[int, str] = {
     7307: "split.incorrectVolumeSize",
     7308: "split.confirmSmallVolume",
 
+    # --- Combine files (section 7400) ---
+    7400: "combine.title",
+    7401: "combine.to",
+    7402: "combine.combining",
+    7403: "combine.selectFirstPart",
+    7404: "combine.cannotDetectPart",
+    7405: "combine.cannotFindMoreThanOnePart",
+
     # --- Checksum (section 7500) ---
     7500: "checksum.calculating",
     7501: "checksum.information",
@@ -565,6 +604,17 @@ UPSTREAM_KEY_MAP: dict[int, str] = {
     7609: "benchmark.ratingPerUsage",
     7610: "benchmark.passes",
 
+    # --- Link dialog (section 7700) ---
+    7700: "link.title",
+    7701: "link.action",
+    7702: "link.from",
+    7703: "link.to",
+    7710: "link.type",
+    7711: "link.hardLink",
+    7712: "link.fileSymbolicLink",
+    7713: "link.directorySymbolicLink",
+    7714: "link.directoryJunction",
+
     # --- Memory limit dialogs (section 7800) ---
     7800: "memory.usageRequest",
     7801: "memory.changeAllowedLimit",
@@ -583,6 +633,45 @@ UPSTREAM_KEY_MAP: dict[int, str] = {
     7821: "memory.skipUnpacking",
     7822: "memory.skipped",
 }
+
+
+def upstream_ids_from_template(strings: dict[int, str]) -> list[int]:
+    """Return every non-empty upstream string id from the English template."""
+    return [
+        upstream_id
+        for upstream_id, text in sorted(strings.items())
+        if strip_accelerator(text).strip()
+    ]
+
+
+def validate_upstream_key_map(strings: dict[int, str], upstream_ids: list[int]) -> None:
+    """Fail generation if a non-empty upstream string lacks a semantic app key."""
+    missing_ids = [upstream_id for upstream_id in upstream_ids if upstream_id not in UPSTREAM_KEY_MAP]
+    if missing_ids:
+        print("Error: missing semantic keys for upstream strings:", file=sys.stderr)
+        for upstream_id in missing_ids:
+            print(f"  {upstream_id}: {strings[upstream_id]!r}", file=sys.stderr)
+        sys.exit(1)
+
+    key_to_ids: dict[str, list[int]] = {}
+    for upstream_id, key in UPSTREAM_KEY_MAP.items():
+        key_to_ids.setdefault(key, []).append(upstream_id)
+    duplicate_keys = {key: ids for key, ids in key_to_ids.items() if len(ids) > 1}
+    if duplicate_keys:
+        print("Error: duplicate upstream string keys:", file=sys.stderr)
+        for key, ids in sorted(duplicate_keys.items()):
+            print(f"  {key}: {ids}", file=sys.stderr)
+        sys.exit(1)
+
+
+def build_upstream_translations(strings: dict[int, str], upstream_ids: list[int]) -> dict[str, str]:
+    """Build key→translation entries for all upstream ids present in a locale."""
+    translations: dict[str, str] = {}
+    for upstream_id in upstream_ids:
+        text = strip_accelerator(strings.get(upstream_id, '')).strip()
+        if text:
+            translations[UPSTREAM_KEY_MAP[upstream_id]] = text
+    return translations
 
 
 # ---------------------------------------------------------------------------
@@ -662,14 +751,11 @@ def main():
     # Parse English template
     en_strings = parse_lang_file(str(en_file))
 
+    upstream_ids = upstream_ids_from_template(en_strings)
+    validate_upstream_key_map(en_strings, upstream_ids)
+
     # Build English key→value from upstream
-    en_upstream: dict[str, str] = {}
-    for uid, key in UPSTREAM_KEY_MAP.items():
-        text = en_strings.get(uid, '')
-        # Strip accelerator markers for display
-        text = strip_accelerator(text).strip()
-        if text:
-            en_upstream[key] = text
+    en_upstream = build_upstream_translations(en_strings, upstream_ids)
 
     print(f"Upstream English strings: {len(en_upstream)}")
 
@@ -694,12 +780,7 @@ def main():
         translated = parse_lang_file(str(lang_file))
 
         # Build translations for this locale
-        locale_upstream: dict[str, str] = {}
-        for uid, key in UPSTREAM_KEY_MAP.items():
-            text = translated.get(uid, '')
-            text = strip_accelerator(text).strip()
-            if text:
-                locale_upstream[key] = text
+        locale_upstream = build_upstream_translations(translated, upstream_ids)
 
         if not locale_upstream:
             print(f"  Skipping {stem} ({apple_locale}): no translations found")

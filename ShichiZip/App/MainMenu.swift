@@ -409,7 +409,7 @@ enum FileManagerFavoriteStore {
     }
 
     static func saveSlotTitle(for slot: Int) -> String {
-        "Bookmark \(slot)"
+        "\(SZL10n.string("favorites.bookmark")) \(slot)"
     }
 
     static func displayTitle(for slot: Int) -> String {
