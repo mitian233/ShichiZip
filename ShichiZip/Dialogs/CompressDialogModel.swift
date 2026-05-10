@@ -40,7 +40,6 @@ extension CompressDialogController {
         let validatePassword: (String, String, FormatOption, SZEncryptionMethod) throws -> String?
         let effectiveAdvancedOptions: (FormatOption, MethodOption?, AdvancedOptionsState) -> (state: AdvancedOptionsState, capabilities: AdvancedOptionsCapabilities)
         let applyAdvancedOptions: (AdvancedOptionsState, AdvancedOptionsCapabilities, SZCompressionSettings) -> Void
-        let compressionResourceEstimate: (FormatOption, MethodOption?, Int, UInt64, String?, String) -> CompressionResourceEstimate
 
         func build(from state: CompressDialogState) throws -> CompressDialogResult {
             let effectiveCreateSFX = state.createSFX && supportsSFX(state.format, state.method)
@@ -60,7 +59,7 @@ extension CompressDialogController {
             if effectiveCreateSFX && !trimmedSplitVolumes.isEmpty {
                 throw NSError(domain: NSCocoaErrorDomain,
                               code: NSUserCancelledError,
-                              userInfo: [NSLocalizedDescriptionKey: "Windows SFX archives cannot be split into volumes."])
+                              userInfo: [NSLocalizedDescriptionKey: SZL10n.string("app.archive.error.sfxCannotSplitVolumes")])
             }
 
             let normalizedMemoryUsageSpec = state.memoryUsageSpec.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -104,21 +103,6 @@ extension CompressDialogController {
             applyAdvancedOptions(effectiveAdvancedOptions.state,
                                  effectiveAdvancedOptions.capabilities,
                                  settings)
-
-            let estimate = compressionResourceEstimate(state.format,
-                                                       state.method,
-                                                       state.level,
-                                                       state.dictionarySize,
-                                                       state.threadText,
-                                                       normalizedMemoryUsageSpec)
-            if let compressionMemory = estimate.compressionMemory,
-               let memoryUsageLimit = estimate.memoryUsageLimit,
-               compressionMemory > memoryUsageLimit
-            {
-                throw NSError(domain: NSCocoaErrorDomain,
-                              code: NSUserCancelledError,
-                              userInfo: [NSLocalizedDescriptionKey: "Compression requires \(CompressDialogController.memoryUsageText(for: compressionMemory)), which exceeds the selected memory usage limit of \(CompressDialogController.memoryUsageText(for: memoryUsageLimit))."])
-            }
 
             return CompressDialogResult(settings: settings, archiveURL: archiveURL)
         }

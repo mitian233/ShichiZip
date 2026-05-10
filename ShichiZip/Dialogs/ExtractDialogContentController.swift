@@ -57,7 +57,7 @@ struct ExtractDialogResultBuilder {
         guard !trimmedPath.isEmpty else {
             throw NSError(domain: NSCocoaErrorDomain,
                           code: NSFileNoSuchFileError,
-                          userInfo: [NSLocalizedDescriptionKey: "Enter a destination folder."])
+                          userInfo: [NSLocalizedDescriptionKey: SZL10n.string("fileop.selectDestination")])
         }
 
         let expandedPath = NSString(string: trimmedPath).expandingTildeInPath
@@ -98,7 +98,7 @@ struct ExtractDialogResultBuilder {
         guard !trimmedName.isEmpty else {
             throw NSError(domain: NSCocoaErrorDomain,
                           code: NSFileWriteInvalidFileNameError,
-                          userInfo: [NSLocalizedDescriptionKey: "Enter a destination folder name."])
+                          userInfo: [NSLocalizedDescriptionKey: SZL10n.string("app.fileManager.enterFolderName")])
         }
 
         return baseDestinationURL.appendingPathComponent(trimmedName, isDirectory: true).standardizedFileURL

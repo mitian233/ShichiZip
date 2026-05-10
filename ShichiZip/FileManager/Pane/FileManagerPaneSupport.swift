@@ -326,7 +326,7 @@ final class FileManagerPaneIconProvider {
         switch source {
         case .parent:
             return cachedIcon(forKey: "parent") {
-                let image = NSImage(systemSymbolName: "arrow.up.circle.fill", accessibilityDescription: "Parent")
+                let image = NSImage(systemSymbolName: "arrow.up.circle.fill", accessibilityDescription: SZL10n.string("view.upOneLevel"))
                 image?.isTemplate = true
                 return image
             }
@@ -335,13 +335,13 @@ final class FileManagerPaneIconProvider {
             guard showsRealFileIcons else {
                 return cachedIcon(forKey: isDirectory ? "template:archive:folder" : "template:archive:file") {
                     NSImage(systemSymbolName: isDirectory ? "folder.fill" : "doc.fill",
-                            accessibilityDescription: isDirectory ? "Folder" : "File")
+                            accessibilityDescription: SZL10n.string(isDirectory ? "column.folder" : "menu.file"))
                 }
             }
 
             if isDirectory {
                 return cachedIcon(forKey: "real:archive:folder") {
-                    NSImage(systemSymbolName: "folder.fill", accessibilityDescription: "Folder")
+                    NSImage(systemSymbolName: "folder.fill", accessibilityDescription: SZL10n.string("column.folder"))
                 }
             }
 
@@ -359,7 +359,7 @@ final class FileManagerPaneIconProvider {
             guard showsRealFileIcons else {
                 return cachedIcon(forKey: isDirectory ? "template:filesystem:folder" : "template:filesystem:file") {
                     NSImage(systemSymbolName: isDirectory ? "folder.fill" : "doc.fill",
-                            accessibilityDescription: isDirectory ? "Folder" : "File")
+                            accessibilityDescription: SZL10n.string(isDirectory ? "column.folder" : "menu.file"))
                 }
             }
             return cachedIcon(forKey: "real:filesystem:\(iconPath)") {

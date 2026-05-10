@@ -288,14 +288,6 @@ final class CompressDialogController: NSObject, NSTextFieldDelegate, NSComboBoxD
                                      capabilities: capabilities,
                                      to: settings)
             },
-            compressionResourceEstimate: { [self] format, method, level, dictionarySize, threadText, memoryUsageSpec in
-                compressionResourceEstimate(for: format,
-                                            method: method,
-                                            level: level,
-                                            dictionarySize: dictionarySize,
-                                            threadText: threadText,
-                                            memoryUsageSpec: memoryUsageSpec)
-            },
         )
     }
 

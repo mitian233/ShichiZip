@@ -303,7 +303,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, FileManagerDocumentOpenRouti
         let groups = groupedFileSystemItemsByParentDirectory(fileURLs)
 
         guard !groups.isEmpty else {
-            throw ShichiZipQuickActionError.unsupportedSelection("Select one or more files or folders.")
+            throw ShichiZipQuickActionError.unsupportedSelection(SZL10n.string("archive.selectOneOrMoreFiles"))
         }
 
         for group in groups {
@@ -314,14 +314,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, FileManagerDocumentOpenRouti
 
     private func handleOpenInShichiZipQuickAction(_ request: ShichiZipQuickActionRequest) throws {
         let itemURL = try existingSingleURL(from: request,
-                                            selectionError: "Select a single file or folder to open in \(AppBuildInfo.appDisplayName()).")
+                                            selectionError: SZL10n.string("archive.selectOneFile"))
         SZLog.info(Self.quickActionLogPrefix, "open-in-shichizip opening new window item=\(itemURL.path)")
         _ = openFileSystemItemInNewFileManager(itemURL)
     }
 
     private func handleSmartQuickExtractQuickAction(_ request: ShichiZipQuickActionRequest) throws {
         let archiveURL = try existingSingleFileURL(from: request,
-                                                   selectionError: "Select a single archive to extract.",
+                                                   selectionError: SZL10n.string("app.fileManager.selectArchiveToExtract"),
                                                    directoryError: "Folders cannot be extracted as archives.")
         let defaults = ExtractDialogController.quickActionDefaults()
         let parentWindow = NSApp.keyWindow ?? NSApp.mainWindow

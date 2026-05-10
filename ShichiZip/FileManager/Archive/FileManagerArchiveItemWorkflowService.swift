@@ -555,7 +555,7 @@ final class FileManagerArchiveItemWorkflowService {
     private func unavailableExternalOpenError(for itemName: String) -> NSError {
         NSError(domain: SZArchiveErrorDomain,
                 code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "No application is available to open \"\(itemName)\"."])
+                userInfo: [NSLocalizedDescriptionKey: SZL10n.string("app.fileManager.error.noAppToOpen", itemName)])
     }
 
     private func rememberTemporaryDirectory(_ url: URL) {

@@ -12,7 +12,7 @@ final class FileManagerPaneView: NSView {
          addressBarIconSize: CGFloat,
          listRowHeight: CGFloat)
     {
-        upButton = NSButton(image: NSImage(systemSymbolName: "chevron.up", accessibilityDescription: "Up")!, target: nil, action: nil)
+        upButton = NSButton(image: NSImage(systemSymbolName: "chevron.up", accessibilityDescription: SZL10n.string("view.upOneLevel"))!, target: nil, action: nil)
         locationIconView = NSImageView()
         pathField = NSTextField()
         tableView = FileManagerTableView()
