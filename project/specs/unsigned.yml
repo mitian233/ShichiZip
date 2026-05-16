@@ -5,16 +5,3 @@ settings:
     CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: ""
     DEVELOPMENT_TEAM: ""
-  configs:
-    Debug:
-      CODE_SIGNING_ALLOWED: NO
-      CODE_SIGNING_REQUIRED: NO
-      CODE_SIGN_STYLE: Manual
-      CODE_SIGN_IDENTITY: ""
-      DEVELOPMENT_TEAM: ""
-    Release:
-      CODE_SIGNING_ALLOWED: NO
-      CODE_SIGNING_REQUIRED: NO
-      CODE_SIGN_STYLE: Manual
-      CODE_SIGN_IDENTITY: ""
-      DEVELOPMENT_TEAM: ""
