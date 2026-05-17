@@ -190,7 +190,8 @@ final class FileManagerArchiveItemWorkflowService {
         guard let materialization = try FileManagerExtractionMaterialization.prepareNewDestination(
             finalURL: standardizedDestinationURL,
             publishRootIsDirectory: item.isDirectory,
-            fileManager: fileManager)
+            fileManager: fileManager,
+        )
         else {
             throw NSError(domain: NSCocoaErrorDomain,
                           code: NSFileWriteFileExistsError,

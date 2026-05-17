@@ -102,7 +102,7 @@ struct FileManagerExtractionMaterialization: @unchecked Sendable {
                 .replacingOccurrences(of: "-", with: "")
                 .prefix(sidecarSuffixLength)
             let sidecarURL = parentURL.appendingPathComponent("\(hiddenSidecarPrefix)\(suffix)",
-                                                             isDirectory: true)
+                                                              isDirectory: true)
             do {
                 try fileManager.createDirectory(at: sidecarURL,
                                                 withIntermediateDirectories: false)
@@ -284,7 +284,8 @@ struct FileManagerPreparedExtraction: @unchecked Sendable {
            settings.pathMode != .absolutePaths,
            let materialization = try FileManagerExtractionMaterialization.prepareNewDestination(
                finalURL: destinationURL,
-               publishRootIsDirectory: true)
+               publishRootIsDirectory: true,
+           )
         {
             try materialization.createPublishRootDirectoryIfNeeded()
             var extractionError: Error?
@@ -350,7 +351,8 @@ enum FileManagerArchiveExtraction {
         if settings.pathMode != .absolutePaths,
            let materialization = try FileManagerExtractionMaterialization.prepareNewDestination(
                finalURL: destinationURL,
-               publishRootIsDirectory: true)
+               publishRootIsDirectory: true,
+           )
         {
             try materialization.createPublishRootDirectoryIfNeeded()
             var extractionError: Error?
