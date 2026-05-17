@@ -5,9 +5,11 @@ enum FileManagerTemporaryDirectorySupport {
     static let dragPrefix = "7zE"
     static let quickLookPrefix = "7zQ"
     static let stagingPrefix = "7zS"
+    static let extractionSidecarPrefix = ".7zT"
 
+    private static let randomSuffixLength = 8
+    private static let directoryCreationAttempts = 16
     private static let managedRootPrefixes = ["7zE", "7zO", "7zQ", "7zS"]
-    private static let legacyRootPrefixes = ["ShichiZip-drag-"]
 
     static func rootDirectory(fileManager: FileManager = .default) -> URL {
         fileManager.temporaryDirectory.resolvingSymlinksInPath().standardizedFileURL
@@ -17,10 +19,22 @@ enum FileManagerTemporaryDirectorySupport {
                                        fileManager: FileManager = .default) throws -> URL
     {
         let root = rootDirectory(fileManager: fileManager)
-        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        return try makeUniqueDirectory(in: root,
+                                       prefix: prefix,
+                                       fileManager: fileManager,
+                                       failureDescription: "Unable to create a unique temporary directory.")
+    }
 
-        for _ in 0 ..< 16 {
-            let candidate = root.appendingPathComponent(prefix + randomSuffix(), isDirectory: true)
+    static func makeUniqueDirectory(in parentURL: URL,
+                                    prefix: String,
+                                    fileManager: FileManager = .default,
+                                    failureDescription: String) throws -> URL
+    {
+        try fileManager.createDirectory(at: parentURL,
+                                        withIntermediateDirectories: true)
+
+        for _ in 0 ..< directoryCreationAttempts {
+            let candidate = parentURL.appendingPathComponent(prefix + randomSuffix(), isDirectory: true)
             do {
                 try fileManager.createDirectory(at: candidate, withIntermediateDirectories: false)
                 return candidate.standardizedFileURL
@@ -36,15 +50,11 @@ enum FileManagerTemporaryDirectorySupport {
 
         throw NSError(domain: NSCocoaErrorDomain,
                       code: CocoaError.fileWriteUnknown.rawValue,
-                      userInfo: [NSLocalizedDescriptionKey: "Unable to create a unique temporary directory."])
+                      userInfo: [NSLocalizedDescriptionKey: failureDescription])
     }
 
     static func isManagedRootItem(_ url: URL) -> Bool {
         let name = url.lastPathComponent
-
-        if legacyRootPrefixes.contains(where: { name.hasPrefix($0) }) {
-            return true
-        }
 
         guard let prefix = managedRootPrefixes.first(where: { name.hasPrefix($0) }) else {
             return false
@@ -65,7 +75,9 @@ enum FileManagerTemporaryDirectorySupport {
     }
 
     private static func randomSuffix() -> String {
-        String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(8)).uppercased()
+        String(UUID().uuidString
+            .replacingOccurrences(of: "-", with: "")
+            .prefix(randomSuffixLength)).uppercased()
     }
 }
 

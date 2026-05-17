@@ -3,9 +3,7 @@ import Darwin
 import Foundation
 
 struct FileManagerExtractionMaterialization: @unchecked Sendable {
-    private static let hiddenSidecarPrefix = ".7zT"
-    private static let sidecarSuffixLength = 8
-    private static let sidecarCreationAttempts = 16
+    private static let visibleSidecarRecoveryAttempts = 16
 
     let finalURL: URL
     let sidecarURL: URL
@@ -26,8 +24,12 @@ struct FileManagerExtractionMaterialization: @unchecked Sendable {
             return nil
         }
 
-        let sidecarURL = try createSidecarDirectory(in: parentURL,
-                                                    fileManager: fileManager)
+        let sidecarURL = try FileManagerTemporaryDirectorySupport.makeUniqueDirectory(
+            in: parentURL,
+            prefix: FileManagerTemporaryDirectorySupport.extractionSidecarPrefix,
+            fileManager: fileManager,
+            failureDescription: "A sidecar extraction directory could not be created.",
+        )
         return FileManagerExtractionMaterialization(
             finalURL: standardizedFinalURL,
             sidecarURL: sidecarURL,
@@ -94,32 +96,6 @@ struct FileManagerExtractionMaterialization: @unchecked Sendable {
         }
     }
 
-    private static func createSidecarDirectory(in parentURL: URL,
-                                               fileManager: FileManager) throws -> URL
-    {
-        for _ in 0 ..< sidecarCreationAttempts {
-            let suffix = UUID().uuidString
-                .replacingOccurrences(of: "-", with: "")
-                .prefix(sidecarSuffixLength)
-            let sidecarURL = parentURL.appendingPathComponent("\(hiddenSidecarPrefix)\(suffix)",
-                                                              isDirectory: true)
-            do {
-                try fileManager.createDirectory(at: sidecarURL,
-                                                withIntermediateDirectories: false)
-                return sidecarURL.standardizedFileURL
-            } catch {
-                if fileManager.fileExists(atPath: sidecarURL.path) {
-                    continue
-                }
-                throw error
-            }
-        }
-
-        throw NSError(domain: NSCocoaErrorDomain,
-                      code: NSFileWriteFileExistsError,
-                      userInfo: [NSLocalizedDescriptionKey: "A sidecar extraction directory could not be created."])
-    }
-
     private func publish() throws {
         if isDirectory(at: publishRootURL) {
             try publishDirectory()
@@ -177,7 +153,7 @@ struct FileManagerExtractionMaterialization: @unchecked Sendable {
             ? String(sidecarURL.lastPathComponent.dropFirst())
             : sidecarURL.lastPathComponent
 
-        for attempt in 0 ..< Self.sidecarCreationAttempts {
+        for attempt in 0 ..< Self.visibleSidecarRecoveryAttempts {
             let visibleName = attempt == 0 ? visibleBaseName : "\(visibleBaseName)-\(attempt + 1)"
             let visibleURL = parentURL.appendingPathComponent(visibleName,
                                                               isDirectory: true)
