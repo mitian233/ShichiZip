@@ -1,3 +1,8 @@
+#if SHICHIZIP_ZS_VARIANT
+    @testable import ShichiZip_ZS
+#else
+    @testable import ShichiZip
+#endif
 import XCTest
 
 final class ArchiveOpenErrorClassificationTests: XCTestCase {
@@ -15,7 +20,7 @@ final class ArchiveOpenErrorClassificationTests: XCTestCase {
 
         XCTAssertWrongPassword(
             error,
-            description: "Cannot open encrypted archive '\(archiveURL.path)'. Wrong password?",
+            description: localizedCannotOpenEncryptedWrongPassword(archiveURL),
         )
     }
 
@@ -39,9 +44,9 @@ final class ArchiveOpenErrorClassificationTests: XCTestCase {
 
         XCTAssertWrongPassword(
             error,
-            description: "Cannot open encrypted archive '\(corruptedArchiveURL.path)'. Wrong password?",
+            description: localizedCannotOpenEncryptedWrongPassword(corruptedArchiveURL),
         )
-        XCTAssertTrue(error.localizedFailureReason?.contains("Headers Error") ?? false,
+        XCTAssertTrue(error.localizedFailureReason?.contains(SZL10n.string("error.headersError")) ?? false,
                       "upstream-compatible headline should still preserve header details: \(error)")
     }
 
@@ -63,7 +68,12 @@ final class ArchiveOpenErrorClassificationTests: XCTestCase {
                                             toPath: extractDir.path,
                                             settings: settings)
 
-        XCTAssertWrongPassword(error, description: "Wrong password")
+        XCTAssertWrongPassword(error, description: SZL10n.string("error.wrongPasswordGeneric"))
+    }
+
+    private func localizedCannotOpenEncryptedWrongPassword(_ archiveURL: URL) -> String {
+        SZL10n.string("archive.cannotOpenEncryptedWrongPassword")
+            .replacingOccurrences(of: "{0}", with: archiveURL.path)
     }
 
     private func corruptArchive(at archiveURL: URL) throws {
