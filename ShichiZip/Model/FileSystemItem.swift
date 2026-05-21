@@ -87,3 +87,20 @@ final class FileSystemItem: Sendable {
         Date(timeIntervalSince1970: TimeInterval(timeSpec.tv_sec) + TimeInterval(timeSpec.tv_nsec) / 1_000_000_000)
     }
 }
+
+extension FileSystemItem: Equatable {
+    static func == (lhs: FileSystemItem, rhs: FileSystemItem) -> Bool {
+        lhs.url.standardizedFileURL.path == rhs.url.standardizedFileURL.path
+            && lhs.name == rhs.name
+            && lhs.isDirectory == rhs.isDirectory
+            && lhs.size == rhs.size
+            && lhs.packedSize == rhs.packedSize
+            && lhs.modifiedDate == rhs.modifiedDate
+            && lhs.createdDate == rhs.createdDate
+            && lhs.accessedDate == rhs.accessedDate
+            && lhs.changedDate == rhs.changedDate
+            && lhs.attributes == rhs.attributes
+            && lhs.inode == rhs.inode
+            && lhs.links == rhs.links
+    }
+}

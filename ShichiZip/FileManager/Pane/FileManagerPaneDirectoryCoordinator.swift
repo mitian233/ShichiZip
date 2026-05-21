@@ -40,7 +40,6 @@ final class FileManagerPaneDirectoryCoordinator {
 
     private var snapshotGeneration = 0
     private var directoryWatcher: DirectoryWatcher?
-    private var currentDirectoryFingerprint: [FileManagerDirectorySnapshot.EntryFingerprint] = []
     private var recentDirectories: [URL] = []
 
     private(set) var currentDirectory: URL
@@ -178,7 +177,6 @@ final class FileManagerPaneDirectoryCoordinator {
         tearDownDirectoryWatcher()
         cancelPendingSnapshot()
         items.removeAll()
-        currentDirectoryFingerprint.removeAll()
         reloadTableData()
     }
 
@@ -189,6 +187,10 @@ final class FileManagerPaneDirectoryCoordinator {
 
     private func directoryEnumerationOptions() -> FileManager.DirectoryEnumerationOptions {
         SZSettings.bool(.showHiddenFiles) ? [] : [.skipsHiddenFiles]
+    }
+
+    private func stableSnapshotItems(_ items: [FileSystemItem]) -> [FileSystemItem] {
+        items.sorted { $0.url.standardizedFileURL.path < $1.url.standardizedFileURL.path }
     }
 
     private func captureSelectionState() -> FileManagerFileSystemSelectionState {
@@ -267,7 +269,7 @@ final class FileManagerPaneDirectoryCoordinator {
             switch purpose {
             case let .autoRefresh(selectionState):
                 guard snapshot.url.standardizedFileURL == currentDirectory.standardizedFileURL else { return }
-                guard snapshot.fingerprint != currentDirectoryFingerprint else { return }
+                guard stableSnapshotItems(snapshot.items) != stableSnapshotItems(items) else { return }
                 applyDirectorySnapshot(snapshot)
                 restoreSelectionState(selectionState)
 
@@ -286,7 +288,6 @@ final class FileManagerPaneDirectoryCoordinator {
         currentDirectory = snapshot.url
         recordDirectoryVisit(snapshot.url)
         updatePathField()
-        currentDirectoryFingerprint = snapshot.fingerprint
         items = snapshot.items
         updateTableColumns()
         sortCurrentItems()
