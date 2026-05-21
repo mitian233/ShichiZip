@@ -12,6 +12,13 @@ final class LaunchOpenCoordinator {
         initialFileManagerSuppressed || inFlightOpenCount > 0 || awaitingLaunchOpenDelivery
     }
 
+    /// `true` while an external open is in flight or its launch payload has
+    /// not yet been delivered; the process must stay alive across the
+    /// last-window-closed boundary in that interval.
+    var shouldKeepProcessAlive: Bool {
+        inFlightOpenCount > 0 || awaitingLaunchOpenDelivery
+    }
+
     /// Record that the launch Apple Event promised a forthcoming open.
     func noteLaunchExpectsExternalOpen() {
         awaitingLaunchOpenDelivery = true

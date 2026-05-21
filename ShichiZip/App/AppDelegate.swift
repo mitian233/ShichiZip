@@ -87,7 +87,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, FileManagerDocumentOpenRouti
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
-        SZSettings.bool(.quitAfterLastWindowClosed)
+        guard SZSettings.bool(.quitAfterLastWindowClosed) else { return false }
+        return !launchOpenCoordinator.shouldKeepProcessAlive
     }
 
     func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
