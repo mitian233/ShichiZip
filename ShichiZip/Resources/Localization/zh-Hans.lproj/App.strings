@@ -164,12 +164,12 @@
 "app.settings.defaultOpenersNote" = "已经由本应用作为默认打开方式的类型会显示为「当前默认应用」。如果之后要切换回其他应用，请使用访达的「打开方式」设置或其他应用自己的集成设置。";
 "app.settings.excludeMacResourceForks" = "默认排除 macOS 资源分支文件";
 "app.settings.extraction" = "解压";
-"app.settings.layout" = "布局";
 "app.settings.finderLike" = "Finder 风格";
 "app.settings.finderLikeDescription" = "使用 macOS 风格的文件管理器快捷键，包括按 Return 重命名和 Command+方向键导航。";
 "app.settings.finderQuickActions" = "访达快速操作";
 "app.settings.followSystem" = "跟随系统";
 "app.settings.integration" = "集成";
+"app.settings.layout" = "布局";
 "app.settings.limitTo" = "限制为";
 "app.settings.makeDefault" = "设为默认";
 "app.settings.maxRAMForExtraction" = "解压时最大内存用量：";
@@ -216,6 +216,8 @@
 "compress.createSFX" = "创建 Windows 自解压程序";
 
 "extract.eliminateDuplication" = "排除重复的根目录";
+
+"menu.openOutside" = "在外部打开";
 
 "shell.openArchive" = "打开压缩包…";
 
