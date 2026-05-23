@@ -98,6 +98,7 @@ enum FileManagerWindowPreferences {
     }
 
     @discardableResult
+    @MainActor
     static func applySavedWindowFrameIfNeeded(to window: NSWindow,
                                               defaults: UserDefaults = .standard) -> Bool
     {
@@ -120,6 +121,7 @@ enum FileManagerWindowPreferences {
             && frame.height > 0
     }
 
+    @MainActor
     private static func constrainedWindowFrame(_ frame: NSRect,
                                                for window: NSWindow) -> NSRect
     {
@@ -153,6 +155,7 @@ enum FileManagerWindowPreferences {
         return constrainedFrame
     }
 
+    @MainActor
     private static func screen(for frame: NSRect) -> NSScreen? {
         let frameCenter = NSPoint(x: frame.midX, y: frame.midY)
         return NSScreen.screens.first { screen in

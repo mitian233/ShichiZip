@@ -401,16 +401,18 @@ final class LaunchOpenHUDController: NSObject {
 
     private func startCountdown() {
         startDate = Date()
-        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] timer in
-            guard let self else {
-                timer.invalidate()
-                return
-            }
-            tick()
-        }
+        let timer = Timer(timeInterval: 1.0 / 30.0,
+                          target: self,
+                          selector: #selector(countdownTimerFired(_:)),
+                          userInfo: nil,
+                          repeats: true)
         // `.common` keeps the timer firing during menu/event tracking.
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
+    }
+
+    @objc private func countdownTimerFired(_: Timer) {
+        tick()
     }
 
     private func tick() {
