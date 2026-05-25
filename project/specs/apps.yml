@@ -14,6 +14,7 @@ targets:
         excludes: &app_source_excludes
           - "**/*.entitlements"
           - "QuickActions/Extensions/**"
+          - "QuickLookPreview/Extension/**"
     dependencies:
       - sdk: AppIntents.framework
       - target: ShichiZipRevealInFileManagerAction
@@ -21,6 +22,8 @@ targets:
       - target: ShichiZipOpenInShichiZipAction
         embed: true
       - target: ShichiZipSmartQuickExtractAction
+        embed: true
+      - target: ShichiZipArchivePreviewExtension
         embed: true
     settings:
       base:
@@ -161,6 +164,8 @@ targets:
       - target: ShichiZipZSOpenInShichiZipAction
         embed: true
       - target: ShichiZipZSSmartQuickExtractAction
+        embed: true
+      - target: ShichiZipZSArchivePreviewExtension
         embed: true
     settings:
       base:

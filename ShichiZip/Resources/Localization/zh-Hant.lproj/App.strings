@@ -155,6 +155,13 @@
 "app.progress.pasting" = "正在貼上…";
 "app.progress.working" = "正在處理…";
 
+"app.quickLook.archivePreview.empty" = "沒有壓縮檔內容";
+"app.quickLook.archivePreview.loading" = "正在載入壓縮檔內容…";
+"app.quickLook.archivePreview.readError" = "無法讀取壓縮檔。";
+"app.quickLook.archivePreview.readErrorFormat" = "無法讀取壓縮檔：%@";
+"app.quickLook.archivePreview.showHiddenItems" = "顯示隱藏項目";
+"app.quickLook.archivePreview.unavailable" = "無法預覽";
+
 "app.settings.clear" = "清除";
 "app.settings.commanderLike" = "Commander 風格";
 "app.settings.commanderLikeDescription" = "使用經典的 7-Zip 功能鍵來進行檔案操作與窗格管理。";

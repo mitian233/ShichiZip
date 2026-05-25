@@ -1,0 +1,195 @@
+targets:
+  ShichiZipArchivePreviewExtension:
+    type: app-extension
+    platform: macOS
+    postBuildScripts: &generate_build_metadata
+      - name: Generate Build Metadata
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        script: |
+          sh "${SRCROOT}/project/scripts/generate-build-metadata.sh"
+    sources:
+      - &archive_preview_sources
+        path: ../../ShichiZip/QuickLookPreview
+        excludes:
+          - "Resources/**"
+      - &archive_preview_archive_item_source
+        path: ../../ShichiZip/Model/ArchiveItem.swift
+      - &archive_preview_bridge_sources
+        path: ../../ShichiZip/Bridge
+        excludes:
+          - "SZArchive+Benchmark.mm"
+      - &archive_preview_log_source
+        path: ../../ShichiZip/Utilities/SZLog.swift
+      - &archive_preview_shared_defaults_source
+        path: ../../ShichiZip/Utilities/SZSharedUserDefaults.swift
+      - &archive_preview_localization_resources
+        path: ../../ShichiZip/Resources/Localization
+        buildPhase: resources
+    dependencies: &archive_preview_dependencies
+      - sdk: AppKit.framework
+      - sdk: QuickLookUI.framework
+      - sdk: UniformTypeIdentifiers.framework
+    settings:
+      base:
+        <<: &archive_preview_mainline_settings
+          CODE_SIGN_ENTITLEMENTS: ShichiZip/QuickLookPreview/Resources/ArchivePreviewExtension.entitlements
+          CLANG_CXX_LANGUAGE_STANDARD: c++23
+          SWIFT_OBJC_BRIDGING_HEADER: ShichiZip/QuickLookPreview/Extension/ShichiZipArchivePreviewExtension-Bridging-Header.h
+          HEADER_SEARCH_PATHS:
+            - $(PROJECT_DIR)/$(SEVENZ_VENDOR_ROOT)
+            - $(PROJECT_DIR)/$(SEVENZ_VENDOR_ROOT)/CPP
+            - $(PROJECT_DIR)/$(SEVENZ_VENDOR_ROOT)/C
+          LIBRARY_SEARCH_PATHS:
+            - $(inherited)
+          'LIBRARY_SEARCH_PATHS[arch=arm64]':
+            - $(inherited)
+            - $(PROJECT_DIR)/build/lib/arm64
+          'LIBRARY_SEARCH_PATHS[arch=x86_64]':
+            - $(inherited)
+            - $(PROJECT_DIR)/build/lib/x86_64
+          OTHER_LDFLAGS:
+            - $(inherited)
+            - -liconv
+            - -lpthread
+          'OTHER_LDFLAGS[arch=arm64]':
+            - $(inherited)
+            - -force_load
+            - $(PROJECT_DIR)/build/lib/arm64/$(SEVENZ_LIBRARY_NAME)
+          'OTHER_LDFLAGS[arch=x86_64]':
+            - $(inherited)
+            - -force_load
+            - $(PROJECT_DIR)/build/lib/x86_64/$(SEVENZ_LIBRARY_NAME)
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
+          GENERATE_INFOPLIST_FILE: false
+          APPLICATION_EXTENSION_API_ONLY: true
+          CLANG_ENABLE_OBJC_ARC: true
+          CLANG_WARN_DOCUMENTATION_COMMENTS: false
+          SHICHIZIP_QUICK_ACTION_APP_GROUP_IDENTIFIER: $(DEVELOPMENT_TEAM).ShichiZip
+          SEVENZ_LIBRARY_NAME: lib7zip.a
+          SEVENZ_VENDOR_ROOT: vendor/7zip
+          GCC_PREPROCESSOR_DEFINITIONS:
+            - "$(inherited)"
+            - "NDEBUG=1"
+            - "SHICHIZIP_ZS_VARIANT=0"
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS:
+            - "$(inherited)"
+        PRODUCT_BUNDLE_IDENTIFIER: ee.dawn.ShichiZip.ArchivePreviewExtension
+        PRODUCT_NAME: ShichiZipArchivePreviewExtension
+        SHICHIZIP_ARCHIVE_PREVIEW_DISPLAY_NAME: "ShichiZip Archive Preview"
+    info:
+      path: ../generated/plists/ShichiZipArchivePreviewExtension-Info.plist
+      properties: &archive_preview_info
+        <<: &archive_preview_info_common
+          CFBundleDisplayName: $(SHICHIZIP_ARCHIVE_PREVIEW_DISPLAY_NAME)
+          CFBundleName: $(SHICHIZIP_ARCHIVE_PREVIEW_DISPLAY_NAME)
+          CFBundleShortVersionString: $(MARKETING_VERSION)
+          CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+          LSMinimumSystemVersion: "13.0"
+          ShichiZipQuickActionAppGroupIdentifier: $(SHICHIZIP_QUICK_ACTION_APP_GROUP_IDENTIFIER)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.quicklook.preview
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ArchivePreviewViewController
+          NSExtensionAttributes:
+            QLSupportedContentTypes: &archive_preview_content_types
+              - org.7-zip.7-zip-archive
+              - org.tukaani.lzma-archive
+              - public.lzma-archive
+              - public.lzop-archive
+              - public.lzop-tar-archive
+              - public.lzip-archive
+              - public.lzip-tar-archive
+              - public.lz4-archive
+              - public.lz4-tar-archive
+              - com.pkware.zip-archive
+              - public.zip-archive
+              - public.zip-archive.first-part
+              - com.winzip.zipx-archive
+              - org.tukaani.xz-archive
+              - public.xz-archive
+              - org.tukaani.tar-xz-archive
+              - org.tukaani.xz-tar-archive
+              - public.tar-xz-archive
+              - com.google.brotli-archive
+              - public.brotli-archive
+              - com.google.brotli-tar-archive
+              - public.brotli-tar-archive
+              - com.facebook.zstandard-archive
+              - public.zstandard-archive
+              - com.facebook.zstandard-tar-archive
+              - public.zstandard-tar-archive
+              - com.rarlab.rar-archive
+              - public.bzip2-archive
+              - org.bzip.bzip2-archive
+              - com.redhat.bzip2-archive
+              - public.tar-bzip2-archive
+              - org.bzip.bzip2-tar-archive
+              - public.bzip-archive
+              - org.gnu.gnu-zip-archive
+              - org.gnu.gnu-zip-tar-archive
+              - public.tar-archive
+              - org.gnu.gnu-tar-archive
+              - public.lrzip-archive
+              - org.kolivas.lrzip-archive
+              - public.lrzip-tar-archive
+              - org.kolivas.lrzip-tar-archive
+              - public.cpio-archive
+              - com.apple.bom-compressed-cpio
+              - cx.c3.pax-archive
+              - public.pax-archive
+              - com.apple.disk-image
+              - com.apple.disk-image-smi
+              - public.iso-image
+              - public.archive.lha
+              - com.microsoft.windows-executable
+              - com.microsoft.cab-archive
+              - com.microsoft.msi-installer
+              - com.microsoft.wim-archive
+              - com.apple.iTunes.ipa
+              - com.sun.java-archive
+              - com.cyclos.cpt-archive
+              - com.synology.spk-archive
+              - cx.c3.arc-archive
+              - public.archive.apk
+              - com.android.package-archive
+              - com.microsoft.appx-archive
+              - com.winace.ace-archive
+              - com.apple.xar-archive
+              - com.apple.archive
+              - com.apple.encrypted-archive
+              - com.plougher.squashfs-archive
+              - com.servmask.wpress-backup
+              - com.rileytestut.delta.skin
+
+  ShichiZipZSArchivePreviewExtension:
+    type: app-extension
+    platform: macOS
+    postBuildScripts: *generate_build_metadata
+    sources:
+      - *archive_preview_sources
+      - *archive_preview_archive_item_source
+      - *archive_preview_bridge_sources
+      - *archive_preview_log_source
+      - *archive_preview_shared_defaults_source
+      - *archive_preview_localization_resources
+    dependencies: *archive_preview_dependencies
+    settings:
+      base:
+        <<: *archive_preview_mainline_settings
+        PRODUCT_BUNDLE_IDENTIFIER: ee.dawn.ShichiZipZS.ArchivePreviewExtension
+        PRODUCT_NAME: ShichiZipZSArchivePreviewExtension
+        SHICHIZIP_ARCHIVE_PREVIEW_DISPLAY_NAME: "ShichiZip ZS Archive Preview"
+        SHICHIZIP_QUICK_ACTION_APP_GROUP_IDENTIFIER: $(DEVELOPMENT_TEAM).ShichiZipZS
+        SEVENZ_LIBRARY_NAME: lib7zip-zs.a
+        SEVENZ_VENDOR_ROOT: vendor/7zip-zstd
+        GCC_PREPROCESSOR_DEFINITIONS:
+          - "$(inherited)"
+          - "NDEBUG=1"
+          - "SHICHIZIP_ZS_VARIANT=1"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS:
+          - "$(inherited)"
+          - "SHICHIZIP_ZS_VARIANT"
+    info:
+      path: ../generated/plists/ShichiZipZSArchivePreviewExtension-Info.plist
+      properties: *archive_preview_info

@@ -155,6 +155,13 @@
 "app.progress.pasting" = "Pasting…";
 "app.progress.working" = "Working…";
 
+"app.quickLook.archivePreview.empty" = "No archive contents";
+"app.quickLook.archivePreview.loading" = "Loading archive contents…";
+"app.quickLook.archivePreview.readError" = "The archive could not be read.";
+"app.quickLook.archivePreview.readErrorFormat" = "The archive could not be read: %@";
+"app.quickLook.archivePreview.showHiddenItems" = "Show hidden items";
+"app.quickLook.archivePreview.unavailable" = "Preview unavailable";
+
 "app.settings.clear" = "Clear";
 "app.settings.commanderLike" = "Commander-like";
 "app.settings.commanderLikeDescription" = "Uses the classic 7-Zip function-key workflow for file operations and pane management.";

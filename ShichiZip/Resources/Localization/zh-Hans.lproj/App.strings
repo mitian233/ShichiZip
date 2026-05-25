@@ -155,6 +155,13 @@
 "app.progress.pasting" = "正在粘贴…";
 "app.progress.working" = "正在处理…";
 
+"app.quickLook.archivePreview.empty" = "没有压缩包内容";
+"app.quickLook.archivePreview.loading" = "正在加载压缩包内容…";
+"app.quickLook.archivePreview.readError" = "无法读取压缩包。";
+"app.quickLook.archivePreview.readErrorFormat" = "无法读取压缩包：%@";
+"app.quickLook.archivePreview.showHiddenItems" = "显示隐藏项目";
+"app.quickLook.archivePreview.unavailable" = "预览不可用";
+
 "app.settings.clear" = "清除";
 "app.settings.commanderLike" = "Commander 风格";
 "app.settings.commanderLikeDescription" = "使用经典 7-Zip 功能键操作方式，通过功能键进行文件操作和窗格管理。";
