@@ -104,6 +104,7 @@ static inline NSError* SZMakeDetailedError(NSInteger code, NSString* desc, NSStr
 }
 
 static NSString* const SZSharedUserDefaultsAppGroupIdentifierInfoKey = @"ShichiZipQuickActionAppGroupIdentifier";
+static NSString* const SZLocalizationBundleIdentifier = @"ee.dawn.ShichiZip.Localization";
 
 static inline NSUserDefaults* SZSharedNSUserDefaults(void) {
     NSString* appGroupIdentifier =
@@ -118,12 +119,44 @@ static inline NSUserDefaults* SZSharedNSUserDefaults(void) {
     return [NSUserDefaults standardUserDefaults];
 }
 
+static inline NSBundle* SZLocalizationBundle(void) {
+    NSBundle* bundle = [NSBundle bundleWithIdentifier:SZLocalizationBundleIdentifier];
+    if (bundle) {
+        return bundle;
+    }
+
+    NSMutableArray<NSURL*>* candidateURLs = [NSMutableArray array];
+    NSURL* privateFrameworksURL = [[NSBundle mainBundle] privateFrameworksURL];
+    if (privateFrameworksURL) {
+        [candidateURLs addObject:[privateFrameworksURL URLByAppendingPathComponent:@"ShichiZipLocalization.framework"
+                                                                       isDirectory:YES]];
+    }
+    [candidateURLs addObject:[[[NSBundle mainBundle] bundleURL]
+                                 URLByAppendingPathComponent:@"Contents/Frameworks/ShichiZipLocalization.framework"
+                                                 isDirectory:YES]];
+    [candidateURLs addObject:[[[[[NSBundle mainBundle] bundleURL] URLByDeletingLastPathComponent]
+                                 URLByDeletingLastPathComponent]
+                                 URLByAppendingPathComponent:@"Frameworks/ShichiZipLocalization.framework"
+                                                 isDirectory:YES]];
+
+    for (NSURL* candidateURL in candidateURLs) {
+        NSBundle* candidateBundle = [NSBundle bundleWithURL:candidateURL];
+        if ([candidateBundle.bundleIdentifier isEqualToString:SZLocalizationBundleIdentifier]) {
+            return candidateBundle;
+        }
+    }
+
+    return [NSBundle mainBundle];
+}
+
 /// Look up a localized string: checks App.strings first, then Upstream.strings.
 /// Mirrors the SZL10n.string() Swift API for use in Objective-C bridge code.
 static inline NSString* SZLocalizedString(NSString* key) {
+    NSBundle* baseBundle = SZLocalizationBundle();
+
     // Check override bundle from language preference
     NSString* override = [SZSharedNSUserDefaults() stringForKey:@"LanguageOverride"];
-    NSBundle* bundle = [NSBundle mainBundle];
+    NSBundle* bundle = baseBundle;
     if (override.length > 0) {
         NSString* lpath = [bundle pathForResource:override ofType:@"lproj"];
         if (lpath) {
@@ -141,7 +174,16 @@ static inline NSString* SZLocalizedString(NSString* key) {
     if (![upstreamValue isEqualToString:key])
         return upstreamValue;
     // Fallback to main bundle if override was active
-    if (bundle != [NSBundle mainBundle]) {
+    if (bundle != baseBundle) {
+        appValue = [baseBundle localizedStringForKey:key value:nil table:@"App"];
+        if (![appValue isEqualToString:key])
+            return appValue;
+        upstreamValue = [baseBundle localizedStringForKey:key value:nil table:@"Upstream"];
+        if (![upstreamValue isEqualToString:key])
+            return upstreamValue;
+    }
+
+    if (baseBundle != [NSBundle mainBundle]) {
         appValue = [[NSBundle mainBundle] localizedStringForKey:key value:nil table:@"App"];
         if (![appValue isEqualToString:key])
             return appValue;
@@ -149,6 +191,7 @@ static inline NSString* SZLocalizedString(NSString* key) {
         if (![upstreamValue isEqualToString:key])
             return upstreamValue;
     }
+
     return key;
 }
 

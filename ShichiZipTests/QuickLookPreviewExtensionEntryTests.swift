@@ -10,10 +10,11 @@ final class QuickLookPreviewExtensionEntryTests: XCTestCase {
         XCTAssertTrue(previewController is NSViewController)
     }
 
-    func testQuickLookPreviewExtensionIncludesAppLocalizations() throws {
-        let appexBundle = try loadQuickLookBundle(named: Self.quickLookPreviewAppexName)
-        let englishLocalizationPath = try XCTUnwrap(appexBundle.path(forResource: "en",
-                                                                     ofType: "lproj"))
+    func testQuickLookPreviewUsesSharedLocalizationFramework() throws {
+        _ = try loadQuickLookBundle(named: Self.quickLookPreviewAppexName)
+        let localizationBundle = try loadLocalizationBundle()
+        let englishLocalizationPath = try XCTUnwrap(localizationBundle.path(forResource: "en",
+                                                                            ofType: "lproj"))
         let englishLocalizationBundle = try XCTUnwrap(Bundle(path: englishLocalizationPath))
 
         let key = "app.archive.error.operationCancelled"
@@ -21,6 +22,15 @@ final class QuickLookPreviewExtensionEntryTests: XCTestCase {
                                                                  value: nil,
                                                                  table: "App"),
                        "Operation was cancelled")
+    }
+
+    private func loadLocalizationBundle() throws -> Bundle {
+        let plugInsURL = try XCTUnwrap(Bundle.main.builtInPlugInsURL)
+        let frameworkURL = plugInsURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("Frameworks", isDirectory: true)
+            .appendingPathComponent("ShichiZipLocalization.framework", isDirectory: true)
+        return try XCTUnwrap(Bundle(url: frameworkURL))
     }
 
     private func loadPreviewController(from appexName: String) throws -> QLPreviewingController {

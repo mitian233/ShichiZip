@@ -24,13 +24,11 @@ targets:
         path: ../../ShichiZip/Utilities/SZLog.swift
       - &archive_preview_shared_defaults_source
         path: ../../ShichiZip/Utilities/SZSharedUserDefaults.swift
-      - &archive_preview_localization_resources
-        path: ../../ShichiZip/Resources/Localization
-        buildPhase: resources
     dependencies: &archive_preview_dependencies
       - sdk: AppKit.framework
       - sdk: QuickLookUI.framework
       - sdk: UniformTypeIdentifiers.framework
+      - target: ShichiZipLocalization
       - target: ShichiZipArchiveCore
     settings:
       base:
@@ -161,11 +159,11 @@ targets:
       - *archive_preview_bridge_sources
       - *archive_preview_log_source
       - *archive_preview_shared_defaults_source
-      - *archive_preview_localization_resources
     dependencies:
       - sdk: AppKit.framework
       - sdk: QuickLookUI.framework
       - sdk: UniformTypeIdentifiers.framework
+      - target: ShichiZipLocalization
       - target: ShichiZipZSArchiveCore
     settings:
       base:

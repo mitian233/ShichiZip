@@ -26,6 +26,7 @@ targets:
           APPLICATION_EXTENSION_API_ONLY: true
           CLANG_CXX_LANGUAGE_STANDARD: c++23
           CLANG_WARN_DOCUMENTATION_COMMENTS: false
+          STRIP_STYLE: non-global
           HEADER_SEARCH_PATHS:
             - $(PROJECT_DIR)/vendor/7zip
             - $(PROJECT_DIR)/vendor/7zip/CPP

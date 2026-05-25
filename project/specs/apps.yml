@@ -13,10 +13,13 @@ targets:
       - path: ../../ShichiZip
         excludes: &app_source_excludes
           - "**/*.entitlements"
+          - "Resources/Localization/**"
           - "QuickActions/Extensions/**"
           - "QuickLookPreview/Extension/**"
     dependencies:
       - sdk: AppIntents.framework
+      - target: ShichiZipLocalization
+        embed: true
       - target: ShichiZipArchiveCore
         embed: true
       - target: ShichiZipRevealInFileManagerAction
@@ -153,6 +156,8 @@ targets:
     sources: *app_sources
     dependencies:
       - sdk: AppIntents.framework
+      - target: ShichiZipLocalization
+        embed: true
       - target: ShichiZipZSArchiveCore
         embed: true
       - target: ShichiZipZSRevealInFileManagerAction
