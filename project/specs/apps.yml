@@ -13,10 +13,15 @@ targets:
       - path: ../../ShichiZip
         excludes: &app_source_excludes
           - "**/*.entitlements"
+          - "Resources/Localization/**"
           - "QuickActions/Extensions/**"
           - "QuickLookPreview/Extension/**"
     dependencies:
       - sdk: AppIntents.framework
+      - target: ShichiZipLocalization
+        embed: true
+      - target: ShichiZipArchiveCore
+        embed: true
       - target: ShichiZipRevealInFileManagerAction
         embed: true
       - target: ShichiZipOpenInShichiZipAction
@@ -36,26 +41,10 @@ targets:
             - $(PROJECT_DIR)/$(SEVENZ_VENDOR_ROOT)
             - $(PROJECT_DIR)/$(SEVENZ_VENDOR_ROOT)/CPP
             - $(PROJECT_DIR)/$(SEVENZ_VENDOR_ROOT)/C
-          LIBRARY_SEARCH_PATHS:
-            - $(inherited)
-          'LIBRARY_SEARCH_PATHS[arch=arm64]':
-            - $(inherited)
-            - $(PROJECT_DIR)/build/lib/arm64
-          'LIBRARY_SEARCH_PATHS[arch=x86_64]':
-            - $(inherited)
-            - $(PROJECT_DIR)/build/lib/x86_64
           OTHER_LDFLAGS:
             - $(inherited)
             - -liconv
             - -lpthread
-          'OTHER_LDFLAGS[arch=arm64]':
-            - $(inherited)
-            - -force_load
-            - $(PROJECT_DIR)/build/lib/arm64/$(SEVENZ_LIBRARY_NAME)
-          'OTHER_LDFLAGS[arch=x86_64]':
-            - $(inherited)
-            - -force_load
-            - $(PROJECT_DIR)/build/lib/x86_64/$(SEVENZ_LIBRARY_NAME)
           MACOSX_DEPLOYMENT_TARGET: "13.0"
           GENERATE_INFOPLIST_FILE: false
           CLANG_ENABLE_OBJC_ARC: true
@@ -85,6 +74,7 @@ targets:
       - path: ../../ShichiZipTests
     dependencies:
       - target: ShichiZip
+      - target: ShichiZipArchiveCore
       - sdk: AppIntents.framework
     settings:
       base:
@@ -95,6 +85,9 @@ targets:
         SWIFT_OBJC_BRIDGING_HEADER: ShichiZipTests/ShichiZipTests-Bridging-Header.h
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/ShichiZip.app/Contents/MacOS/ShichiZip
         BUNDLE_LOADER: $(TEST_HOST)
+        LD_RUNPATH_SEARCH_PATHS:
+          - $(inherited)
+          - "@loader_path/../../../../Frameworks"
 
   ShichiZipUITests:
     type: bundle.ui-testing
@@ -119,6 +112,7 @@ targets:
       - path: ../../ShichiZipTests
     dependencies:
       - target: ShichiZipZS
+      - target: ShichiZipZSArchiveCore
       - sdk: AppIntents.framework
     settings:
       base:
@@ -129,6 +123,9 @@ targets:
         SWIFT_OBJC_BRIDGING_HEADER: ShichiZipTests/ShichiZipTests-Bridging-Header.h
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/ShichiZip ZS.app/Contents/MacOS/ShichiZip ZS
         BUNDLE_LOADER: $(TEST_HOST)
+        LD_RUNPATH_SEARCH_PATHS:
+          - $(inherited)
+          - "@loader_path/../../../../Frameworks"
         SWIFT_ACTIVE_COMPILATION_CONDITIONS:
           - "$(inherited)"
           - "SHICHIZIP_ZS_VARIANT"
@@ -159,6 +156,10 @@ targets:
     sources: *app_sources
     dependencies:
       - sdk: AppIntents.framework
+      - target: ShichiZipLocalization
+        embed: true
+      - target: ShichiZipZSArchiveCore
+        embed: true
       - target: ShichiZipZSRevealInFileManagerAction
         embed: true
       - target: ShichiZipZSOpenInShichiZipAction

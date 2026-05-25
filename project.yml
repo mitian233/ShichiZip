@@ -2,6 +2,8 @@ name: ShichiZip
 
 include:
   - project/specs/base.yml
+  - project/specs/archive-core.yml
+  - project/specs/localization.yml
   - project/specs/apps.yml
   - project/specs/quick-actions.yml
   - project/specs/quicklook-preview.yml

@@ -1,6 +1,9 @@
 import Foundation
 import os
 
+@_silgen_name("ShichiZipLocalizationFrameworkAnchor")
+private func ShichiZipLocalizationFrameworkAnchor()
+
 /// Centralized lookup for localized UI strings.
 ///
 /// Strings sourced from the upstream 7-Zip translation project live in
@@ -21,6 +24,8 @@ import os
 /// let label = SZL10n.string("app.extract.moveToTrash")
 /// ```
 enum SZL10n {
+    static let localizationBundleIdentifier = "ee.dawn.ShichiZip.Localization"
+
     /// The bundle used for string lookups. Points at the chosen
     /// `.lproj` inside `Resources/Localization` when an override
     /// is active, otherwise falls back to `.main`.
@@ -53,7 +58,10 @@ enum SZL10n {
         if let found = lookup(key, in: b) {
             return found
         }
-        // When an override bundle is active, fall back to .main
+        if b !== baseBundle, let found = lookup(key, in: baseBundle) {
+            return found
+        }
+        // Fall back to .main for unsigned/ad-hoc builds or older bundles.
         if b !== Bundle.main, let found = lookup(key, in: .main) {
             return found
         }
@@ -83,19 +91,12 @@ enum SZL10n {
     }
 
     /// Returns all available languages sorted by display name,
-    /// based on which `.lproj` folders exist in the app bundle's Resources.
+    /// based on which `.lproj` folders exist in the localization bundle.
     static func availableLanguages() -> [Language] {
-        guard let resourceURL = Bundle.main.resourceURL,
-              let contents = try? FileManager.default.contentsOfDirectory(at: resourceURL,
-                                                                          includingPropertiesForKeys: nil)
-        else {
-            return []
-        }
-
         var languages: [Language] = []
-        for url in contents {
-            guard url.pathExtension == "lproj" else { continue }
-            let code = url.deletingPathExtension().lastPathComponent
+        let localeCodes = availableLocaleCodes(in: baseBundle)
+
+        for code in localeCodes {
             if code == "en" || code == "Base" { continue }
 
             let nativeLocale = Locale(identifier: code)
@@ -119,17 +120,62 @@ enum SZL10n {
 
     // MARK: - Private
 
+    private static let localizationFrameworkAnchor: Void = {
+        ShichiZipLocalizationFrameworkAnchor()
+    }()
+
+    private static var baseBundle: Bundle {
+        _ = localizationFrameworkAnchor
+        return localizationBundle() ?? .main
+    }
+
+    private static func localizationBundle() -> Bundle? {
+        if let bundle = Bundle(identifier: localizationBundleIdentifier) {
+            return bundle
+        }
+
+        let candidateURLs = [
+            Bundle.main.privateFrameworksURL?.appendingPathComponent("ShichiZipLocalization.framework", isDirectory: true),
+            Bundle.main.bundleURL.appendingPathComponent("Contents/Frameworks/ShichiZipLocalization.framework", isDirectory: true),
+            Bundle.main.bundleURL
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Frameworks/ShichiZipLocalization.framework", isDirectory: true),
+        ]
+
+        for url in candidateURLs.compactMap(\.self) {
+            if let bundle = Bundle(url: url),
+               bundle.bundleIdentifier == localizationBundleIdentifier
+            {
+                return bundle
+            }
+        }
+
+        return nil
+    }
+
+    private static func availableLocaleCodes(in bundle: Bundle) -> Set<String> {
+        var codes = Set(bundle.localizations)
+
+        for path in bundle.paths(forResourcesOfType: "lproj", inDirectory: nil) {
+            codes.insert(URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent)
+        }
+
+        return codes
+    }
+
     private static func makeBundle() -> Bundle {
         let override = SZSettings.string(.languageOverride)
-        guard !override.isEmpty else { return .main }
+        let bundle = baseBundle
+        guard !override.isEmpty else { return bundle }
 
-        // Look for the lproj in the main bundle's Resources
-        if let path = Bundle.main.path(forResource: override, ofType: "lproj"),
+        // Look for the lproj in the shared localization bundle's Resources
+        if let path = bundle.path(forResource: override, ofType: "lproj"),
            let overrideBundle = Bundle(path: path)
         {
             return overrideBundle
         }
 
-        return .main
+        return bundle
     }
 }

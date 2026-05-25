@@ -1,5 +1,8 @@
 import Foundation
 
+@_silgen_name("ShichiZipLocalizationFrameworkAnchor")
+private func ShichiZipLocalizationFrameworkAnchor()
+
 struct ArchivePreviewSnapshot {
     let archiveURL: URL
     let items: [ArchiveItem]
@@ -991,21 +994,57 @@ enum ArchivePreviewTreeBuilder {
 }
 
 enum ArchivePreviewLocalization {
+    private static let localizationBundleIdentifier = "ee.dawn.ShichiZip.Localization"
+
     static func string(_ key: String) -> String {
-        let mainBundle = Bundle.main
-        if let overrideBundle = languageOverrideBundle(in: mainBundle),
-           let value = lookup(key, in: overrideBundle) ?? lookup(key, in: mainBundle)
+        let bundle = baseBundle
+        if let overrideBundle = languageOverrideBundle(in: bundle),
+           let value = lookup(key, in: overrideBundle) ?? lookup(key, in: bundle) ?? lookup(key, in: .main)
         {
             return value
         }
 
-        return lookup(key, in: mainBundle) ?? key
+        return lookup(key, in: bundle) ?? lookup(key, in: .main) ?? key
     }
 
     static func string(_ key: String,
                        _ args: any CVarArg...) -> String
     {
         String(format: string(key), arguments: args)
+    }
+
+    private static let localizationFrameworkAnchor: Void = {
+        ShichiZipLocalizationFrameworkAnchor()
+    }()
+
+    private static var baseBundle: Bundle {
+        _ = localizationFrameworkAnchor
+        return localizationBundle() ?? .main
+    }
+
+    private static func localizationBundle() -> Bundle? {
+        if let bundle = Bundle(identifier: localizationBundleIdentifier) {
+            return bundle
+        }
+
+        let candidateURLs = [
+            Bundle.main.privateFrameworksURL?.appendingPathComponent("ShichiZipLocalization.framework", isDirectory: true),
+            Bundle.main.bundleURL.appendingPathComponent("Contents/Frameworks/ShichiZipLocalization.framework", isDirectory: true),
+            Bundle.main.bundleURL
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Frameworks/ShichiZipLocalization.framework", isDirectory: true),
+        ]
+
+        for url in candidateURLs.compactMap(\.self) {
+            if let bundle = Bundle(url: url),
+               bundle.bundleIdentifier == localizationBundleIdentifier
+            {
+                return bundle
+            }
+        }
+
+        return nil
     }
 
     private static func languageOverrideBundle(in bundle: Bundle) -> Bundle? {

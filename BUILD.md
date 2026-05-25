@@ -35,7 +35,7 @@ ShichiZip ships in two variants that share the same app code but link against di
 - **Mainline** (`ShichiZip`): linked against `vendor/7zip` ([ip7z/7zip](https://github.com/ip7z/7zip)).
 - **Zstandard fork** (`ShichiZipZS`): linked against `vendor/7zip-zstd` ([mcmilk/7-Zip-zstd](https://github.com/mcmilk/7-Zip-zstd)), adding Zstandard and a few other codecs.
 
-Each build is two steps: build the C/C++ static library and the Windows SFX modules with Zig, then build the macOS app with Xcode.
+Each build is two steps: build the C/C++ static archive and the Windows SFX modules with Zig, then build the macOS app with Xcode. Xcode wraps the static archive in an embedded ArchiveCore framework so the main app and archive Quick Look extension can share one dynamic image.
 
 ### 1. Generate the Xcode project
 
@@ -55,7 +55,7 @@ SHICHIZIP_UNSIGNED=true xcodegen generate
 
 The unsigned project uses the same `project.yml` and conditionally includes an unsigned signing overlay. It disables code signing for Debug and Release, but it is not suitable for packaging, release, signature verification, or validating Quick Action app-group behavior. Run `xcodegen generate` again without `SHICHIZIP_UNSIGNED` to restore the normal signing project.
 
-### 2. Build the upstream library with Zig
+### 2. Build the upstream static archive with Zig
 
 Mainline:
 
@@ -69,7 +69,7 @@ Zstandard fork:
 zig build lib -Dvariant=zs -Dtarget=aarch64-native -Doptimize=ReleaseFast -p build
 ```
 
-Output goes to `build/lib/`. Substitute `-Dtarget=x86_64-native` for Intel builds.
+Output goes to `build/lib/`. Substitute `-Dtarget=x86_64-native` for Intel builds. Xcode links this static archive into the matching `ShichiZipArchiveCore.framework` / `ShichiZipZSArchiveCore.framework`.
 
 ### 3. Build the Windows SFX modules
 
@@ -152,16 +152,16 @@ project/
 ├── localization/      Source localization data (see README)
 └── generated/         Files produced by xcodegen / scripts (gitignored)
 
-build.zig              Zig build script for the static library and SFX modules
+build.zig              Zig build script for the static archive and SFX modules
 build.zig.zon          Zig package manifest
 project.yml            XcodeGen entry point (includes project/specs/*.yml)
 ```
 
 ### Flow
 
-- **`build.zig`** patches the vendored 7-Zip tree (via `vendor/apply_7zip_patches.sh`), then compiles the macOS static library (including the Objective-C++ shims in `vendor/SZ*.mm`) and the Windows SFX modules. Source tarballs from release artifacts contain a `.build-metadata` file and will skip the patch step, since their sources are already patched.
+- **`build.zig`** patches the vendored 7-Zip tree (via `vendor/apply_7zip_patches.sh`), then compiles the macOS static archive (including the Objective-C++ shims in `vendor/SZ*.mm`) and the Windows SFX modules. Source tarballs from release artifacts contain a `.build-metadata` file and will skip the patch step, since their sources are already patched.
 - **`xcodegen`** consumes `project.yml` (which includes the specs under `project/specs/`) to generate `ShichiZip.xcodeproj`. It also runs the localization generators in `project/scripts/` to produce the files under `project/generated/` and the `InfoPlist.strings` for Quick Actions. Re-run `xcodegen generate` after editing any spec or localization source. Source tarballs from release artifacts ship with `ShichiZip.xcodeproj` and the generated localization files already in place, so this step can be skipped when building from a tarball.
-- **Xcode** builds the app, links against the static library produced by Zig in `build/lib/`, and embeds the Quick Action extensions and the specific SFX module from `build/sfx/`.
+- **Xcode** builds the ArchiveCore framework by force-loading the static archive from `build/lib/`, then links the app and archive Quick Look extension against that framework. The app embeds/signs the framework in `Contents/Frameworks`, where the extension can load it through its runpath. Xcode also embeds the Quick Action extensions and the specific SFX module from `build/sfx/`.
 
 ## Reference
 

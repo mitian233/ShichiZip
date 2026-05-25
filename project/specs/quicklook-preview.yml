@@ -24,13 +24,12 @@ targets:
         path: ../../ShichiZip/Utilities/SZLog.swift
       - &archive_preview_shared_defaults_source
         path: ../../ShichiZip/Utilities/SZSharedUserDefaults.swift
-      - &archive_preview_localization_resources
-        path: ../../ShichiZip/Resources/Localization
-        buildPhase: resources
     dependencies: &archive_preview_dependencies
       - sdk: AppKit.framework
       - sdk: QuickLookUI.framework
       - sdk: UniformTypeIdentifiers.framework
+      - target: ShichiZipLocalization
+      - target: ShichiZipArchiveCore
     settings:
       base:
         <<: &archive_preview_mainline_settings
@@ -41,26 +40,14 @@ targets:
             - $(PROJECT_DIR)/$(SEVENZ_VENDOR_ROOT)
             - $(PROJECT_DIR)/$(SEVENZ_VENDOR_ROOT)/CPP
             - $(PROJECT_DIR)/$(SEVENZ_VENDOR_ROOT)/C
-          LIBRARY_SEARCH_PATHS:
-            - $(inherited)
-          'LIBRARY_SEARCH_PATHS[arch=arm64]':
-            - $(inherited)
-            - $(PROJECT_DIR)/build/lib/arm64
-          'LIBRARY_SEARCH_PATHS[arch=x86_64]':
-            - $(inherited)
-            - $(PROJECT_DIR)/build/lib/x86_64
           OTHER_LDFLAGS:
             - $(inherited)
             - -liconv
             - -lpthread
-          'OTHER_LDFLAGS[arch=arm64]':
+          LD_RUNPATH_SEARCH_PATHS:
             - $(inherited)
-            - -force_load
-            - $(PROJECT_DIR)/build/lib/arm64/$(SEVENZ_LIBRARY_NAME)
-          'OTHER_LDFLAGS[arch=x86_64]':
-            - $(inherited)
-            - -force_load
-            - $(PROJECT_DIR)/build/lib/x86_64/$(SEVENZ_LIBRARY_NAME)
+            - "@executable_path/../Frameworks"
+            - "@executable_path/../../../../Frameworks"
           MACOSX_DEPLOYMENT_TARGET: "13.0"
           GENERATE_INFOPLIST_FILE: false
           APPLICATION_EXTENSION_API_ONLY: true
@@ -172,8 +159,12 @@ targets:
       - *archive_preview_bridge_sources
       - *archive_preview_log_source
       - *archive_preview_shared_defaults_source
-      - *archive_preview_localization_resources
-    dependencies: *archive_preview_dependencies
+    dependencies:
+      - sdk: AppKit.framework
+      - sdk: QuickLookUI.framework
+      - sdk: UniformTypeIdentifiers.framework
+      - target: ShichiZipLocalization
+      - target: ShichiZipZSArchiveCore
     settings:
       base:
         <<: *archive_preview_mainline_settings

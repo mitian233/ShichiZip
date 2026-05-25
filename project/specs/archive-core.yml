@@ -1,0 +1,70 @@
+targets:
+  ShichiZipArchiveCore:
+    type: framework
+    platform: macOS
+    postBuildScripts: &archive_core_build_metadata
+      - name: Generate Build Metadata
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        script: |
+          sh "${SRCROOT}/project/scripts/generate-build-metadata.sh"
+    sources:
+      - &archive_core_guid_source
+        path: ../archive-core/SZArchiveCoreInitGuid.cpp
+    dependencies: &archive_core_dependencies
+      - sdk: CoreFoundation.framework
+      - sdk: Foundation.framework
+    settings:
+      base:
+        <<: &archive_core_mainline_settings
+          PRODUCT_BUNDLE_IDENTIFIER: ee.dawn.ShichiZip.ArchiveCore
+          PRODUCT_NAME: ShichiZipArchiveCore
+          MACOSX_DEPLOYMENT_TARGET: "13.0"
+          GENERATE_INFOPLIST_FILE: true
+          DEFINES_MODULE: false
+          APPLICATION_EXTENSION_API_ONLY: true
+          CLANG_CXX_LANGUAGE_STANDARD: c++23
+          CLANG_WARN_DOCUMENTATION_COMMENTS: false
+          STRIP_STYLE: non-global
+          HEADER_SEARCH_PATHS:
+            - $(PROJECT_DIR)/vendor/7zip
+            - $(PROJECT_DIR)/vendor/7zip/CPP
+            - $(PROJECT_DIR)/vendor/7zip/C
+          OTHER_LDFLAGS:
+            - $(inherited)
+            - -liconv
+            - -lpthread
+          'OTHER_LDFLAGS[arch=arm64]':
+            - $(inherited)
+            - -force_load
+            - $(PROJECT_DIR)/build/lib/arm64/lib7zip.a
+          'OTHER_LDFLAGS[arch=x86_64]':
+            - $(inherited)
+            - -force_load
+            - $(PROJECT_DIR)/build/lib/x86_64/lib7zip.a
+
+  ShichiZipZSArchiveCore:
+    type: framework
+    platform: macOS
+    postBuildScripts: *archive_core_build_metadata
+    sources:
+      - *archive_core_guid_source
+    dependencies: *archive_core_dependencies
+    settings:
+      base:
+        <<: *archive_core_mainline_settings
+        PRODUCT_BUNDLE_IDENTIFIER: ee.dawn.ShichiZipZS.ArchiveCore
+        PRODUCT_NAME: ShichiZipZSArchiveCore
+        HEADER_SEARCH_PATHS:
+          - $(PROJECT_DIR)/vendor/7zip-zstd
+          - $(PROJECT_DIR)/vendor/7zip-zstd/CPP
+          - $(PROJECT_DIR)/vendor/7zip-zstd/C
+        'OTHER_LDFLAGS[arch=arm64]':
+          - $(inherited)
+          - -force_load
+          - $(PROJECT_DIR)/build/lib/arm64/lib7zip-zs.a
+        'OTHER_LDFLAGS[arch=x86_64]':
+          - $(inherited)
+          - -force_load
+          - $(PROJECT_DIR)/build/lib/x86_64/lib7zip-zs.a
