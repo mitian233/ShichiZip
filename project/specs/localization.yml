@@ -10,7 +10,7 @@ targets:
         script: |
           sh "${SRCROOT}/project/scripts/generate-build-metadata.sh"
     sources:
-      - path: ../stubs/EmptyExecutable.m
+      - path: ../stubs/EmptyExecutable.c
       - path: ../../ShichiZip/Resources/Localization
         buildPhase: resources
     settings:
