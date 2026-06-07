@@ -21,17 +21,18 @@ This app is also available on [Homebrew Cask](https://formulae.brew.sh/cask/shic
 ```sh
 # Homebrew Cask
 brew install --cask shichizip # Mainline Variant
+brew install --cask shichizip-zs # Zstandard Fork Variant
 
 # MacPorts
 sudo port install shichizip # Mainline Variant
 sudo port install shichizip +zstd # Zstandard Fork Variant
 ```
 
-If you want to install the Zstandard fork variant or nightly builds via Homebrew Cask, you need to use [a separate Homebrew Tap](https://github.com/shichizip/homebrew-tap); see the README of that repository for details.
+If you want to install the nightly builds or get more rapid updates via Homebrew Cask, you may use [a separate Homebrew Tap](https://github.com/shichizip/homebrew-tap); see the README of that repository for details.
 
 ```sh
 brew tap shichizip/tap
-brew install --cask shichizip-zs # Zstandard Fork Variant
+brew install --cask shichizip # / shichizip-zs / shichizip@nightly / shichizip-zs@nightly
 ```
 
 ## Build
