@@ -231,6 +231,29 @@ enum ShichiZipQuickActionInputLoader {
     }
 
     private nonisolated static func parseFileURL(from item: Any?) throws -> URL {
+        guard let item else {
+            throw ShichiZipQuickActionError.invalidPayload
+        }
+
+        // Iterative DFS over nested array/dictionary payloads so a deeply nested
+        // item-provider value can't overflow the call stack.
+        var stack: [Any] = [item]
+        while let candidate = stack.popLast() {
+            if let url = scalarFileURL(from: candidate) {
+                return url
+            }
+
+            if let array = candidate as? [Any] {
+                stack.append(contentsOf: array.reversed())
+            } else if let dictionary = candidate as? [AnyHashable: Any] {
+                stack.append(contentsOf: dictionary.values.reversed())
+            }
+        }
+
+        throw ShichiZipQuickActionError.invalidPayload
+    }
+
+    private nonisolated static func scalarFileURL(from item: Any) -> URL? {
         if let url = item as? URL {
             return url
         }
@@ -240,50 +263,42 @@ enum ShichiZipQuickActionInputLoader {
         }
 
         if let string = item as? String {
-            if let url = URL(string: string), url.isFileURL {
-                return url
-            }
-
-            return URL(fileURLWithPath: string)
-        }
-
-        if let array = item as? [Any] {
-            for candidate in array {
-                if let url = try? parseFileURL(from: candidate) {
-                    return url
-                }
-            }
-        }
-
-        if let dictionary = item as? [AnyHashable: Any] {
-            for value in dictionary.values {
-                if let url = try? parseFileURL(from: value) {
-                    return url
-                }
-            }
-        }
-
-        if let data = item as? Data,
-           let url = try NSKeyedUnarchiver.unarchivedObject(ofClass: NSURL.self, from: data) as URL?
-        {
-            return url
+            return fileURL(from: string)
         }
 
         if let data = item as? Data {
-            var isStale = false
-            if let bookmarkURL = try? URL(resolvingBookmarkData: data,
-                                          options: [.withoutUI, .withoutMounting],
-                                          relativeTo: nil,
-                                          bookmarkDataIsStale: &isStale)
-            {
-                return bookmarkURL
-            }
-
-            if let string = String(data: data, encoding: .utf8) {
-                return try parseFileURL(from: string)
-            }
+            return fileURL(from: data)
         }
 
-        throw ShichiZipQuickActionError.invalidPayload
+        return nil
+    }
+
+    private nonisolated static func fileURL(from string: String) -> URL {
+        if let url = URL(string: string), url.isFileURL {
+            return url
+        }
+
+        return URL(fileURLWithPath: string)
+    }
+
+    private nonisolated static func fileURL(from data: Data) -> URL? {
+        if let url = try? (NSKeyedUnarchiver.unarchivedObject(ofClass: NSURL.self, from: data) as URL?) {
+            return url
+        }
+
+        var isStale = false
+        if let bookmarkURL = try? URL(resolvingBookmarkData: data,
+                                      options: [.withoutUI, .withoutMounting],
+                                      relativeTo: nil,
+                                      bookmarkDataIsStale: &isStale)
+        {
+            return bookmarkURL
+        }
+
+        if let string = String(data: data, encoding: .utf8) {
+            return fileURL(from: string)
+        }
+
+        return nil
     }
 }

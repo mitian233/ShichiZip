@@ -216,10 +216,12 @@ final class ArchivePreviewViewController: NSViewController, @MainActor QLPreview
     }
 
     private func recordExpansionState(for nodes: [ArchivePreviewTreeNode]) {
-        for node in nodes where !node.children.isEmpty {
+        var stack = nodes
+        while let node = stack.popLast() {
+            guard !node.children.isEmpty else { continue }
             if tableView.isItemExpanded(node) {
                 expandedNodePaths.insert(node.row.path)
-                recordExpansionState(for: node.children)
+                stack.append(contentsOf: node.children)
             } else {
                 expandedNodePaths.remove(node.row.path)
             }
@@ -236,10 +238,13 @@ final class ArchivePreviewViewController: NSViewController, @MainActor QLPreview
     }
 
     private func restoreExpansionState(for nodes: [ArchivePreviewTreeNode]) {
-        for node in nodes where !node.children.isEmpty {
-            guard expandedNodePaths.contains(node.row.path) else { continue }
+        var stack = nodes
+        while let node = stack.popLast() {
+            guard !node.children.isEmpty,
+                  expandedNodePaths.contains(node.row.path)
+            else { continue }
             tableView.expandItem(node)
-            restoreExpansionState(for: node.children)
+            stack.append(contentsOf: node.children)
         }
     }
 
@@ -255,10 +260,13 @@ final class ArchivePreviewViewController: NSViewController, @MainActor QLPreview
     {
         guard remainingDepth > 0 else { return }
 
-        for node in nodes where !node.children.isEmpty {
+        var stack = nodes.map { ($0, remainingDepth) }
+        while let (node, depth) = stack.popLast() {
+            guard !node.children.isEmpty else { continue }
             tableView.expandItem(node)
-            expandDefaultItems(for: node.children,
-                               remainingDepth: remainingDepth - 1)
+            if depth > 1 {
+                stack.append(contentsOf: node.children.map { ($0, depth - 1) })
+            }
         }
     }
 }

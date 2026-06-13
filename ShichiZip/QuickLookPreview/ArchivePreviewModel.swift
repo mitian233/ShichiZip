@@ -629,18 +629,16 @@ enum ArchivePreviewPresentation {
     }
 
     static func summary(for treeNodes: [ArchivePreviewTreeNode]) -> ArchivePreviewSummary {
-        treeNodes.reduce(ArchivePreviewSummary(fileCount: 0,
-                                               folderCount: 0,
-                                               fileSize: 0))
-        { partialResult, node in
-            let nodeSummary = adding(node.row, to: partialResult)
-            let childSummary = summary(for: node.children)
-            return ArchivePreviewSummary(
-                fileCount: nodeSummary.fileCount + childSummary.fileCount,
-                folderCount: nodeSummary.folderCount + childSummary.folderCount,
-                fileSize: addingFileSize(nodeSummary.fileSize, childSummary.fileSize),
-            )
+        // Iterative DFS so deep trees can't overflow the call stack.
+        var summary = ArchivePreviewSummary(fileCount: 0,
+                                            folderCount: 0,
+                                            fileSize: 0)
+        var stack = treeNodes
+        while let node = stack.popLast() {
+            summary = adding(node.row, to: summary)
+            stack.append(contentsOf: node.children)
         }
+        return summary
     }
 
     static func summaryText(for treeNodes: [ArchivePreviewTreeNode]) -> String {
@@ -891,6 +889,7 @@ enum ArchivePreviewTreeBuilder {
         let columns: [ArchivePreviewColumn]
         var row: ArchivePreviewRow?
         private var childrenByName: [String: MutableNode] = [:]
+        private var finalized: ArchivePreviewTreeNode?
 
         init(name: String,
              pathParts: [String],
@@ -916,16 +915,28 @@ enum ArchivePreviewTreeBuilder {
             return child
         }
 
+        /// Finalize bottom-up via an explicit stack so deeply nested archive
+        /// paths can't overflow the call stack.
         func finalizedChildren() -> [ArchivePreviewTreeNode] {
-            childrenByName.values
-                .map(\.finalizedNode)
-                .sorted(by: Self.sortTreeNodes)
+            var order: [MutableNode] = []
+            var stack = Array(childrenByName.values)
+            while let node = stack.popLast() {
+                order.append(node)
+                stack.append(contentsOf: node.childrenByName.values)
+            }
+
+            for node in order.reversed() {
+                node.finalized = ArchivePreviewTreeNode(row: node.row ?? node.syntheticDirectoryRow(),
+                                                        children: node.sortedFinalizedChildren())
+            }
+
+            return sortedFinalizedChildren()
         }
 
-        private var finalizedNode: ArchivePreviewTreeNode {
-            let childNodes = finalizedChildren()
-            return ArchivePreviewTreeNode(row: row ?? syntheticDirectoryRow(),
-                                          children: childNodes)
+        private func sortedFinalizedChildren() -> [ArchivePreviewTreeNode] {
+            childrenByName.values
+                .compactMap(\.finalized)
+                .sorted(by: Self.sortTreeNodes)
         }
 
         private func syntheticDirectoryRow() -> ArchivePreviewRow {
