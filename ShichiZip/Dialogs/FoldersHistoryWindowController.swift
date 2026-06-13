@@ -239,12 +239,8 @@ final class FoldersHistoryWindowController: NSObject, NSTableViewDataSource, NST
         let completionHandler = completionHandler
         self.completionHandler = nil
 
-        guard buttonIndex == ButtonIndex.open, !entries.isEmpty else {
-            completionHandler?(nil)
-            return
-        }
-
-        completionHandler?(Result(selectedURL: selectedEntry(),
+        let selectedURL = buttonIndex == ButtonIndex.open ? selectedEntry() : nil
+        completionHandler?(Result(selectedURL: selectedURL,
                                   updatedEntries: entries))
     }
 }

@@ -279,12 +279,12 @@ final class FileManagerPaneDirectoryCoordinator {
             case let .autoRefresh(selectionState):
                 guard snapshot.url.standardizedFileURL == currentDirectory.standardizedFileURL else { return }
                 guard stableSnapshotItems(snapshot.items) != stableSnapshotItems(items) else { return }
-                applyDirectorySnapshot(snapshot)
+                applyDirectorySnapshot(snapshot, recordVisit: false)
                 restoreSelectionState(selectionState)
 
             case let .refresh(selectionState):
                 guard snapshot.url.standardizedFileURL == currentDirectory.standardizedFileURL else { return }
-                applyDirectorySnapshot(snapshot)
+                applyDirectorySnapshot(snapshot, recordVisit: false)
                 restoreSelectionState(selectionState)
             }
 
@@ -293,9 +293,13 @@ final class FileManagerPaneDirectoryCoordinator {
         }
     }
 
-    private func applyDirectorySnapshot(_ snapshot: FileManagerDirectorySnapshot) {
+    private func applyDirectorySnapshot(_ snapshot: FileManagerDirectorySnapshot,
+                                        recordVisit: Bool = true)
+    {
         currentDirectory = snapshot.url
-        recordDirectoryVisit(snapshot.url)
+        if recordVisit {
+            recordDirectoryVisit(snapshot.url)
+        }
         updatePathField()
         items = snapshot.items
         updateTableColumns()
