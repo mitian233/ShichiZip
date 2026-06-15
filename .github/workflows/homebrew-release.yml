@@ -41,6 +41,8 @@ jobs:
             --dir "$RUNNER_TEMP/homebrew-release-artifacts"
 
       - name: Render release casks
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: |
           set -euo pipefail
 
@@ -48,7 +50,7 @@ jobs:
             --repository "${{ github.repository }}" \
             --output-dir homebrew-tap/Casks \
             stable \
-            --tag "${{ github.event.release.tag_name || inputs.tag }}" \
+            --tag "$RELEASE_TAG" \
             --artifact-dir "$RUNNER_TEMP/homebrew-release-artifacts"
 
       - name: Update tap casks
@@ -66,11 +68,13 @@ jobs:
 
       - name: Commit tap update
         if: steps.update_tap.outputs.changed == 'true'
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: |
           set -euo pipefail
 
           git -C homebrew-tap config user.name "github-actions[bot]"
           git -C homebrew-tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C homebrew-tap add Casks/shichizip.rb Casks/shichizip-zs.rb
-          git -C homebrew-tap commit -m "update: release casks to ${{ github.event.release.tag_name || inputs.tag }}"
+          git -C homebrew-tap commit -m "update: release casks to $RELEASE_TAG"
           git -C homebrew-tap push
