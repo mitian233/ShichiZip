@@ -21,7 +21,6 @@ enum SZSettingsKey: String {
     case inheritDownloadedFileQuarantine = "InheritDownloadedFileQuarantine"
     case memLimitEnabled = "MemLimitEnabled"
     case memLimitGB = "MemLimitGB"
-    case quickLookPreviewExpansionDepth = "QuickLookPreviewExpansionDepth"
 
     // Shortcuts page
     case fileManagerShortcutPreset = "FileManagerShortcutPreset"
@@ -83,7 +82,8 @@ enum SZSettings {
 
     private static func defaultBool(for key: SZSettingsKey) -> Bool {
         switch key {
-        case .showRealFileIcons, .workDirRemovableOnly, .inheritDownloadedFileQuarantine:
+        case .showRealFileIcons, .workDirRemovableOnly, .inheritDownloadedFileQuarantine,
+             .launchOpenRevealAfterExtract:
             true
         default:
             false
@@ -91,9 +91,13 @@ enum SZSettings {
     }
 
     private static func postChange(for key: SZSettingsKey) {
+        postChange(forRawKey: key.rawValue)
+    }
+
+    private static func postChange(forRawKey rawKey: String) {
         NotificationCenter.default.post(name: .szSettingsDidChange,
                                         object: nil,
-                                        userInfo: ["key": key.rawValue])
+                                        userInfo: ["key": rawKey])
     }
 
     static func bool(_ key: SZSettingsKey) -> Bool {
@@ -126,6 +130,20 @@ enum SZSettings {
         postChange(for: key)
     }
 
+    static func integer(_ key: SZSettingsKey, default defaultValue: Int) -> Int {
+        guard defaults.object(forKey: key.rawValue) != nil else {
+            return defaultValue
+        }
+        return defaults.integer(forKey: key.rawValue)
+    }
+
+    static func double(_ key: SZSettingsKey, default defaultValue: Double) -> Double {
+        guard defaults.object(forKey: key.rawValue) != nil else {
+            return defaultValue
+        }
+        return defaults.double(forKey: key.rawValue)
+    }
+
     static var memLimitGB: Int {
         let v = defaults.integer(forKey: SZSettingsKey.memLimitGB.rawValue)
         return v > 0 ? v : 4
@@ -135,8 +153,8 @@ enum SZSettings {
         get { ArchivePreviewPreferences.expansionDepth(defaults: defaults) }
         set {
             defaults.set(ArchivePreviewPreferences.normalizedExpansionDepth(newValue),
-                         forKey: SZSettingsKey.quickLookPreviewExpansionDepth.rawValue)
-            postChange(for: .quickLookPreviewExpansionDepth)
+                         forKey: ArchivePreviewPreferences.expansionDepthKey)
+            postChange(forRawKey: ArchivePreviewPreferences.expansionDepthKey)
         }
     }
 
@@ -148,23 +166,13 @@ enum SZSettings {
     }
 
     static var launchOpenRevealAfterExtract: Bool {
-        get {
-            guard defaults.object(forKey: SZSettingsKey.launchOpenRevealAfterExtract.rawValue) != nil else {
-                return true
-            }
-            return defaults.bool(forKey: SZSettingsKey.launchOpenRevealAfterExtract.rawValue)
-        }
+        get { bool(.launchOpenRevealAfterExtract) }
         set { set(newValue, for: .launchOpenRevealAfterExtract) }
     }
 
     /// Cancel-window length, in seconds. `<= 0` bypasses the HUD entirely.
     static var launchOpenDelaySeconds: TimeInterval {
-        get {
-            guard defaults.object(forKey: SZSettingsKey.launchOpenDelaySeconds.rawValue) != nil else {
-                return 2.0
-            }
-            return max(0, defaults.double(forKey: SZSettingsKey.launchOpenDelaySeconds.rawValue))
-        }
+        get { max(0, double(.launchOpenDelaySeconds, default: 2.0)) }
         set {
             defaults.set(max(0, newValue), forKey: SZSettingsKey.launchOpenDelaySeconds.rawValue)
             postChange(for: .launchOpenDelaySeconds)
@@ -177,12 +185,8 @@ enum SZSettings {
     }
 
     static var fileManagerShortcutPreset: FileManagerShortcutPreset {
-        guard defaults.object(forKey: SZSettingsKey.fileManagerShortcutPreset.rawValue) != nil else {
-            return .finder
-        }
-
-        let rawValue = defaults.integer(forKey: SZSettingsKey.fileManagerShortcutPreset.rawValue)
-        return FileManagerShortcutPreset(rawValue: rawValue) ?? .finder
+        FileManagerShortcutPreset(rawValue: integer(.fileManagerShortcutPreset,
+                                                    default: FileManagerShortcutPreset.finder.rawValue)) ?? .finder
     }
 
     static func setFileManagerShortcutPreset(_ preset: FileManagerShortcutPreset) {
