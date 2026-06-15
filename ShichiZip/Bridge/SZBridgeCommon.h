@@ -263,20 +263,38 @@ static inline UString ToU(NSString* _Nullable s) {
     if (!s)
         return UString();
     const NSUInteger len = s.length;
+    if (len == 0)
+        return UString();
+
+    unichar stackBuffer[256];
+    unichar* utf16 = len <= 256 ? stackBuffer : (unichar*)malloc(len * sizeof(unichar));
+    [s getCharacters:utf16 range:NSMakeRange(0, len)];
+
     UString u;
-    u.Empty();
+    wchar_t* buffer = u.GetBuf_SetEnd((unsigned)len);
     for (NSUInteger i = 0; i < len; i++)
-        u += (wchar_t)[s characterAtIndex:i];
+        buffer[i] = (wchar_t)utf16[i];
+
+    if (utf16 != stackBuffer)
+        free(utf16);
     return u;
 }
 
 static inline NSString* ToNS(const UString& u) {
-    NSMutableString* s = [NSMutableString stringWithCapacity:u.Len()];
-    for (unsigned i = 0; i < u.Len(); i++) {
-        const unichar ch = (unichar)u[i];
-        [s appendString:[NSString stringWithCharacters:&ch length:1]];
-    }
-    return s;
+    const unsigned len = u.Len();
+    if (len == 0)
+        return @"";
+
+    const wchar_t* chars = u.Ptr();
+    unichar stackBuffer[256];
+    unichar* utf16 = len <= 256 ? stackBuffer : (unichar*)malloc((size_t)len * sizeof(unichar));
+    for (unsigned i = 0; i < len; i++)
+        utf16[i] = (unichar)chars[i];
+
+    NSString* result = [NSString stringWithCharacters:utf16 length:len];
+    if (utf16 != stackBuffer)
+        free(utf16);
+    return result;
 }
 
 // Convert a C string to NSString without returning nil; invalid UTF-8
